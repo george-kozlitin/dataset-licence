@@ -15,14 +15,14 @@ from markupsafe import Markup
 
 from dlf.facts import DatasetFacts
 
-DISCLAIMER = "Facts from the dataset's own pages and its declared sources. Not legal advice."
+DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
 HUB_PAGE_SIZE = 200
 SITEMAP_LIMIT = 5000
 SIGNALS = ("permissive", "restrictive", "conflict", "unclear")
 SIGNAL_LABELS = {
-    "permissive": "Permissive licence",
-    "restrictive": "Restricted use",
-    "conflict": "Licence conflict",
+    "permissive": "Permissive or share-alike",
+    "restrictive": "Use restrictions",
+    "conflict": "Possible licence conflict",
     "unclear": "Unclear",
 }
 HF = "https://huggingface.co/datasets/"

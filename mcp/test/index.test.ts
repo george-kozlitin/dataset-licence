@@ -5,7 +5,7 @@ import worker, { _resetCache } from "../src/index";
 
 const fx = (p: string) => readFileSync(fileURLToPath(new URL("./fixtures/" + p, import.meta.url)), "utf8");
 const SITE = "https://site.test";
-const DISCLAIMER = "Facts from the dataset's own pages and its declared sources. Not legal advice.";
+const DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset.";
 
 class MemKV {
   store = new Map<string, { value: string; ttl?: number }>();
@@ -148,7 +148,7 @@ describe("dataset_licence", () => {
     globalThis.fetch = (async () => new Response("<html>fallback</html>", { status: 200 })) as any;
     const { body } = await call("dataset_licence", { id: "a/b" });
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0].text).toContain("No facts for dataset 'a/b'");
+    expect(body.result.content[0].text).toContain("Could not read the published facts for dataset 'a/b'");
   });
   it("unknown tool is a tool error", async () => {
     const { body } = await call("zzz", {});

@@ -1,6 +1,6 @@
 {% extends "base.html.j2" %}
 {% block title %}{{ f.id }} licence{% endblock %}
-{% block description %}Licence facts for the Hugging Face dataset {{ f.id }}: {{ f.signal | label }}. Declared licence: {{ f.stated_licence or "none" }}.{% endblock %}
+{% block description %}Licence facts for the Hugging Face dataset {{ f.id }}: {{ f.signal | label }}. Declared licence: {{ f.stated_licence or "not declared" }}.{% endblock %}
 {% block body %}
 <h1>{{ f.id }}</h1>
 <p class="signal signal-{{ f.signal }}">{{ f.signal | label }}</p>
@@ -9,12 +9,12 @@
 
 <h2>Evidence</h2>
 <ul>
-<li>Declared licence: {% if f.stated_licence %}<a href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a> (from the {{ f.stated_from }}){% else %}none declared (<a href="/licence/none/">see datasets without one</a>){% endif %}</li>
+<li>Declared licence: {% if f.stated_licence %}<a href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a> (from the {{ f.stated_from }}){% else %}not declared (<a href="/licence/none/">see datasets without one</a>){% endif %}</li>
 {% if f.licence_name or f.licence_link %}
 <li>Licence name on the card: {{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}</li>
 {% endif %}
-<li>Licence files: {% if f.licence_files %}{{ f.licence_files | join(", ") }}{% if f.file_licence %}, detected as {{ f.file_licence }}{% else %}, licence not detected{% endif %}{% else %}none found{% endif %}</li>
-<li>Gated: {% if f.gated is string and f.gated == "manual" %}yes, manual approval{% elif f.gated %}yes{% else %}no{% endif %}</li>
+<li>Licence files: {% if f.licence_files %}{{ f.licence_files | join(", ") }}{% if f.file_licence %}, detected as {{ f.file_licence }}{% else %}, licence not identified{% endif %}{% else %}no licence file at the top level of the repository{% endif %}</li>
+<li>Access gated on Hugging Face: {% if f.gated is string and f.gated == "manual" %}yes, manual approval required{% elif f.gated %}yes{% else %}no{% endif %}</li>
 </ul>
 
 <h2>Declared sources</h2>
@@ -25,7 +25,7 @@
 {% endfor %}
 </ul>
 {% else %}
-<p>No sources declared.</p>
+<p>No source datasets listed in the card metadata.</p>
 {% endif %}
 
 <h2>Signal</h2>

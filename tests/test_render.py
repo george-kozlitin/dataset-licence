@@ -122,7 +122,7 @@ def test_disclaimer_on_every_dataset_page(site):
     assert len(pages) == 3
     for p in pages:
         assert DISCLAIMER in p.read_text(encoding="utf-8")
-    assert DISCLAIMER == "Facts from the dataset's own pages and its declared sources. Not legal advice."
+    assert DISCLAIMER == "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
 
 
 def test_forbidden_phrases_and_em_dash(tmp_path):
@@ -162,12 +162,12 @@ def test_hub_titles_and_slugs(tmp_path):
     assert "Apache 2.0" in read(tmp_path, "licence/apache-2-0/index.html")
     assert "Question Answering" in read(tmp_path, "task/question-answering/index.html")
     page = read(tmp_path, "d/o/b/index.html")
-    assert "Gated: yes<" in page
+    assert "Access gated on Hugging Face: yes<" in page
 
 
 def test_manual_gating(site):
     root, _ = site
-    assert "yes, manual approval" in read(root, "d/evil/set/index.html")
+    assert "yes, manual approval required" in read(root, "d/evil/set/index.html")
 
 
 def test_escaping(site):
@@ -198,7 +198,7 @@ def test_links_and_evidence(site):
     assert 'href="/d/acme/permissive-set/"' in page  # rendered source
     assert 'href="https://huggingface.co/datasets/gone/missing"' not in page  # not found
     assert "not found" in page
-    assert "Licence conflict" in page
+    assert "Possible licence conflict" in page
     assert "LICENSE" in page and "cc-by-nc-4.0" in page
     assert "manual" in page
     none_page = read(root, "d/plain/index.html")
@@ -208,8 +208,8 @@ def test_links_and_evidence(site):
 
 def test_signal_labels(site):
     root, _ = site
-    assert "Permissive licence" in read(root, "d/acme/permissive-set/index.html")
-    assert "Restricted use" in read(root, "signal/restrictive/index.html")
+    assert "Permissive or share-alike" in read(root, "d/acme/permissive-set/index.html")
+    assert "Use restrictions" in read(root, "signal/restrictive/index.html")
 
 
 def test_canonical_and_meta(site):
@@ -246,7 +246,7 @@ def test_home(site):
     root, _ = site
     t = read(root, "index.html")
     assert 'id="q"' in t and "/search.js" in t
-    assert "Licence conflict" in t
+    assert "Possible licence conflict" in t
     assert 'href="/about/"' in t
     assert "evil/" in t  # top conflicts
 

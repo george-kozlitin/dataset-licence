@@ -20,7 +20,7 @@
     }
     if (!n) {
       var e = document.createElement("li");
-      e.textContent = "No dataset id contains that text.";
+      e.textContent = "No matching dataset IDs in this site's index.";
       out.appendChild(e);
     }
   }
@@ -38,7 +38,7 @@
       loading = false;
       out.textContent = "";
       var e = document.createElement("li");
-      e.textContent = "Search could not load. Reload the page to try again.";
+      e.textContent = "Could not load the dataset search index. Reload the page to try again.";
       out.appendChild(e);
     });
   });

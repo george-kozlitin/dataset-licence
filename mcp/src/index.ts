@@ -8,9 +8,11 @@ export interface Env {
   MCP_STATS_SECRET: string;
 }
 
-const DISCLAIMER = "Facts from the dataset's own pages and its declared sources. Not legal advice.";
+const DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset.";
 const ID_RE = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?$/;
 const SIGNALS = ["permissive", "restrictive", "conflict", "unclear"];
+const SIGNAL_HELP =
+  "Signal values: permissive = permissive or share-alike licence reported; restrictive = use restrictions reported; conflict = possible licence conflict; unclear = insufficient or unrecognised licence information. These signals do not establish permission to use a dataset.";
 const INDEX_TTL_MS = 10 * 60 * 1000;
 const COUNT_TTL_S = 70 * 86400;
 const MAX_LIMIT = 50;
@@ -35,10 +37,10 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Licence facts for one Hugging Face dataset: stated licence, where it was stated, declared source datasets, licence files, and a signal (permissive, restrictive, conflict, unclear). " + DISCLAIMER,
+      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
-      properties: { id: { type: "string", description: "Dataset id, for example 'owner/name'." } },
+      properties: { id: { type: "string", description: "Dataset ID, for example 'owner/name'." } },
       required: ["id"],
       additionalProperties: false,
     },
@@ -46,13 +48,13 @@ const TOOLS = [
   {
     name: "find_datasets",
     description:
-      "List popular Hugging Face datasets from the index, sorted by downloads, filtered by signal, task or stated licence. At most 50 results. " + DISCLAIMER,
+      "List popular Hugging Face datasets from the published index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
-        signal: { type: "string", enum: SIGNALS },
+        signal: { type: "string", enum: SIGNALS, description: SIGNAL_HELP },
         task: { type: "string", description: "Task tag, for example 'text-generation'." },
-        licence: { type: "string", description: "Stated licence id, for example 'apache-2.0'." },
+        licence: { type: "string", description: "Declared licence ID, for example 'apache-2.0'." },
         limit: { type: "integer", minimum: 1, maximum: MAX_LIMIT, description: "Default 20, maximum 50." },
       },
       additionalProperties: false,
@@ -80,13 +82,13 @@ const toolText = (text: string, isError = false) => ({
 
 async function datasetLicence(env: Env, args: any) {
   const id = args?.id;
-  if (!validId(id)) return toolText("Invalid dataset id. Expected 'owner/name' or 'name'.", true);
+  if (!validId(id)) return toolText("Invalid dataset ID. Expected 'owner/name' or 'name'.", true);
   let res: Response;
   try { res = await fetch(`${base(env)}/data/d/${id}.json`); } catch { return toolText("Facts are temporarily unavailable.", true); }
   if (res.status === 404) return toolText(`No facts for dataset '${id}'. It is not in the published set.`, true);
   if (!res.ok) return toolText("Facts are temporarily unavailable.", true);
   let facts: unknown;
-  try { facts = await res.json(); } catch { return toolText(`No facts for dataset '${id}'. It is not in the published set.`, true); }
+  try { facts = await res.json(); } catch { return toolText(`Could not read the published facts for dataset '${id}'. Please try again later.`, true); }
   return toolText(JSON.stringify({ facts, disclaimer: DISCLAIMER, page: `${base(env)}/d/${id}/` }, null, 2));
 }
 

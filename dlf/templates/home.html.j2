@@ -1,11 +1,11 @@
 {% extends "base.html.j2" %}
 {% block title %}Licence facts for popular Hugging Face datasets{% endblock %}
-{% block description %}Licence facts for the {{ total }} most downloaded Hugging Face datasets, each with its sources and evidence.{% endblock %}
+{% block description %}Licence facts for {{ total }} popular Hugging Face datasets, with recorded source declarations and evidence from automated checks.{% endblock %}
 {% block body %}
 <h1>Licence facts for popular Hugging Face datasets</h1>
 <p>{{ total }} datasets, each with its declared licence, licence files, declared sources and the evidence behind its signal.</p>
 <p class="disclaimer">{{ disclaimer }}</p>
-<p><label for="q">Find a dataset by id</label></p>
+<p><label for="q">Find a dataset by ID</label></p>
 <input id="q" type="search" placeholder="e.g. squad" autocomplete="off">
 <ul id="results" class="list"></ul>
 <noscript><p>Search needs JavaScript. Browse the lists below instead.</p></noscript>
@@ -15,7 +15,7 @@
 <li><a href="/signal/{{ s }}/">{{ s | label }}</a>: {{ totals[s] }}</li>
 {% endfor %}
 </ul>
-<h2>Top licence conflicts</h2>
+<h2>Potential licence conflicts among the most downloaded datasets</h2>
 {% if conflicts %}
 <ul class="list">
 {% for e in conflicts %}
@@ -23,7 +23,7 @@
 {% endfor %}
 </ul>
 {% else %}
-<p>No conflicts found.</p>
+<p>No potential licence conflicts flagged.</p>
 {% endif %}
 {% endblock %}
 {% block script %}<script src="/search.js" defer></script>{% endblock %}

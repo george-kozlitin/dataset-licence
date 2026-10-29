@@ -5,20 +5,21 @@
 <h1>About</h1>
 <p>{{ disclaimer }}</p>
 <h2>Where the facts come from</h2>
-<p>For each dataset we read its public Hugging Face entry: the licence tag, the dataset card, the names of its files, and any LICENSE file. If the card names other datasets as its sources, we read their licences too. Every page lists what was found and what was not.</p>
+<p>For each dataset, we check its public Hugging Face metadata and dataset card. We check the names of its top-level files. We read the opening text of matching licence files and look for known licence identifiers. We also check the licence metadata of source datasets listed in the card metadata. Each page shows what these checks recorded.</p>
 <h2>What the signals mean</h2>
 <ul>
-<li><strong>Permissive licence</strong>: the declared licence is a well-known permissive one, and nothing we checked contradicts it.</li>
-<li><strong>Restricted use</strong>: the declared licence, a licence file, or the card text restricts use, for example to non-commercial purposes.</li>
-<li><strong>Licence conflict</strong>: two things we checked disagree, for example the tag and a LICENSE file, or the tag and a declared source.</li>
-<li><strong>Unclear</strong>: no licence is declared, the licence is not one we recognise, or a source could not be found. A missing source never counts as a permissive one.</li>
+<li><strong>Permissive or share-alike</strong>: the checks class the reported licence as permissive or share-alike. They flag no conflict in the metadata or licence text they checked. This does not establish permission to use the dataset.</li>
+<li><strong>Use restrictions</strong>: the checks found a licence or card text linked to use restrictions, such as non-commercial or research-only terms.</li>
+<li><strong>Possible licence conflict</strong>: the checks flag a difference between the declared licence category and a detected licence file, or between the declared licence category and a source's licence category.</li>
+<li><strong>Unclear</strong>: the checks cannot assign another signal. For example, the dataset's licence or a source's licence is missing or not recognised. A missing source is not evidence of permission.</li>
 </ul>
 <h2>Limits</h2>
-<p>The signal is a summary of text on the Hub. It does not read the full legal terms, it does not check that the stated licence is correct, and it does not cover the law where you work. Read the licence itself and the dataset card before relying on any dataset.</p>
-<h2>Corrections</h2>
+<p>The signal summarises selected metadata and text on the Hugging Face Hub. The checks do not analyse the full legal terms. They do not verify that a licence declaration is accurate. They do not determine which laws apply. The signal does not establish permission to use the dataset.</p>
 {% if contact %}
-<p>Found a mistake? Write to <a href="mailto:{{ contact }}">{{ contact }}</a>.</p>
+<h2>Corrections</h2>
+<p>Found a mistake? Write to <a href="mailto:{{ contact }}">{{ contact }}</a>. You can also compare the page with the dataset's current Hugging Face page.</p>
 {% else %}
-<p>Found a mistake? Open the dataset on Hugging Face and check the source text first.</p>
+<h2>Checking the source</h2>
+<p>If something looks incorrect, compare it with the dataset's current Hugging Face page. This site reflects the information collected for its published build.</p>
 {% endif %}
 {% endblock %}

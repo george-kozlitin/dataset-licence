@@ -1,8 +1,8 @@
 {% extends "base.html.j2" %}
-{% block title %}{{ {"licence": "Datasets declared as " ~ title, "signal": "Datasets marked " ~ title, "task": "Datasets for task " ~ title}[kind] }}{% if n > 1 %} (page {{ n }}){% endif %}{% endblock %}
-{% block description %}{{ total }} Hugging Face datasets, {{ kind }} {{ title }}, with their licence facts. Page {{ n }} of {{ pages_n }}.{% endblock %}
+{% block title %}{% if kind == "licence" and key == "none" %}Datasets with no declared licence{% elif kind == "licence" %}Datasets with declared licence: {{ title }}{% elif kind == "signal" %}Datasets marked {{ title }}{% else %}Datasets tagged for task: {{ title }}{% endif %}{% if n > 1 %} (page {{ n }}){% endif %}{% endblock %}
+{% block description %}Licence facts for {{ total }} Hugging Face datasets {% if kind == "licence" and key == "none" %}with no declared licence{% elif kind == "licence" %}with declared licence {{ title }}{% elif kind == "signal" %}marked {{ title }}{% else %}tagged for {{ title }}{% endif %}. Page {{ n }} of {{ pages_n }}.{% endblock %}
 {% block body %}
-<h1>{% if kind == "licence" %}Licence: {{ title }}{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
+<h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: {{ title }}{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
 <p>{{ total }} datasets. Page {{ n }} of {{ pages_n }}.</p>
 <ul class="list">
 {% for e in entries %}
