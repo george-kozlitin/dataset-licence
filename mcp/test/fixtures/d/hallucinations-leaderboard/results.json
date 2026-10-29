@@ -16,5 +16,5 @@
  "tasks": [],
  "citation": null,
  "signal": "permissive",
- "reason": "apache-2.0 is a permissive licence"
+ "reason": "The declared licence (apache-2.0) is classified as permissive."
 }

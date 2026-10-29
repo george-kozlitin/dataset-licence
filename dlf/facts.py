@@ -25,7 +25,8 @@ NC_PHRASES = (
 )
 NC_STAND_IN = "cc-by-nc-4.0"
 NC_REASON = (
-    "the card's licence text appears to restrict use to non-commercial or research purposes"
+    "The dataset card's licence name or licence section contains wording that suggests "
+    "non-commercial, research-only or academic-only use restrictions."
 )
 
 
@@ -302,7 +303,10 @@ def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
         if signal == "restrictive":
             reason = NC_REASON
         else:
-            reason = reason.replace(f"the tag {NC_STAND_IN}", "the custom non-commercial licence")
+            reason = reason.replace(
+                f"The declared licence ({NC_STAND_IN})",
+                "The custom licence described in the dataset card",
+            )
 
     gated = entry.get("gated", False)
     if not isinstance(gated, (bool, str)):

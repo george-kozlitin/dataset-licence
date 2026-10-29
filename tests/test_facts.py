@@ -218,7 +218,8 @@ def test_custom_noncommercial_licence_from_card_section():
     assert f.stated_licence == "other"
     assert f.signal == "restrictive"
     assert f.reason == (
-        "the card's licence text appears to restrict use to non-commercial or research purposes"
+        "The dataset card's licence name or licence section contains wording that suggests "
+        "non-commercial, research-only or academic-only use restrictions."
     )
 
 

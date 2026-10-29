@@ -72,12 +72,15 @@ def classify(
     tag = normalise(stated)
     cat = _category(tag)
     if cat == "unclear":
-        return "unclear", "no recognised licence is declared"
+        return "unclear", "The checks could not identify a recognised licence ID in the dataset's metadata."
 
     file_lic = normalise(file_licence)
     file_cat = _category(file_lic)
     if file_cat != "unclear" and file_cat != cat:
-        return "conflict", f"the tag {tag} disagrees with the LICENSE file ({file_lic})"
+        return "conflict", (
+            f"The declared licence ({tag}) and the licence detected in a repository file "
+            f"({file_lic}) fall into different categories, so the licences may conflict."
+        )
 
     unknown = False
     for src in sources:
@@ -86,14 +89,23 @@ def classify(
         if scat == "unclear":
             unknown = True
         elif scat == "restrictive" and cat != "restrictive":
-            return "conflict", f"the tag {tag} conflicts with a restrictive source ({s})"
+            return "conflict", (
+                f"The declared licence ({tag}) may conflict with a source dataset's reported "
+                f"licence ({s}), which is classified as having use restrictions."
+            )
         elif scat == "share-alike" and cat == "permissive":
-            return "conflict", f"the tag {tag} conflicts with a share-alike source ({s})"
+            return "conflict", (
+                f"The declared licence ({tag}) may conflict with a source dataset's reported "
+                f"share-alike licence ({s})."
+            )
 
     if unknown and cat != "restrictive":
-        return "unclear", "source licence unknown for at least one declared source"
+        return "unclear", (
+            "The checks could not identify a recognised licence ID "
+            "for at least one declared source dataset."
+        )
     if cat == "restrictive":
-        return "restrictive", f"{tag} restricts use"
+        return "restrictive", f"The declared licence ({tag}) is classified as having use restrictions."
     if cat == "share-alike":
-        return "permissive", f"{tag} is permissive with a share-alike condition"
-    return "permissive", f"{tag} is a permissive licence"
+        return "permissive", f"The declared licence ({tag}) is classified as share-alike."
+    return "permissive", f"The declared licence ({tag}) is classified as permissive."

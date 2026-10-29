@@ -64,7 +64,7 @@ def test_share_alike_source_under_permissive_conflicts():
 def test_unknown_source():
     signal, reason = classify("mit", [None], None)
     assert signal == "unclear"
-    assert "source licence unknown" in reason
+    assert "for at least one declared source dataset" in reason
 
 
 def test_file_licence_disagreement():
