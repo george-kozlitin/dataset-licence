@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} - Dataset licence facts</title>
+<meta name="description" content="{% block description %}{% endblock %}">
+{% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+<link rel="stylesheet" href="/style.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+<header class="site"><a href="/">Dataset licence facts</a> <a href="/about/">About</a></header>
+<main>
+{% block body %}{% endblock %}
+</main>
+<footer class="site"><p>{{ disclaimer }}</p><p>Built {{ built_at }}.</p></footer>
+{% block script %}{% endblock %}
+</body>
+</html>

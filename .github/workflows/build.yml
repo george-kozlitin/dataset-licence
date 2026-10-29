@@ -1,0 +1,87 @@
+name: build
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      BASE_URL: ${{ vars.BASE_URL }}
+      CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+      PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'dataset-licence' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install package
+        run: pip install -e ".[dev]"
+      - name: Install Worker dependencies
+        working-directory: mcp
+        run: npm ci
+
+      - name: Python tests
+        run: python -m pytest -q
+      - name: Worker tests
+        working-directory: mcp
+        run: npx vitest run
+
+      - name: Build site
+        run: |
+          if [ -z "$BASE_URL" ]; then echo "repository variable BASE_URL is not set" >&2; exit 1; fi
+          args=(--limit 5000 --out site --base-url "$BASE_URL")
+          if [ -n "$CONTACT_EMAIL" ]; then args+=(--contact "$CONTACT_EMAIL"); fi
+          python -m dlf build "${args[@]}"
+
+      - name: Deploy site to Cloudflare Pages
+        working-directory: mcp
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy ../site --project-name "$PAGES_PROJECT" --branch main
+
+      - name: Check Worker config is real
+        working-directory: mcp
+        run: |
+          if grep -q 'example.invalid' wrangler.toml; then
+            echo "mcp/wrangler.toml still contains example.invalid (set SITE_URL)" >&2; exit 1
+          fi
+          if grep -Eq 'id *= *"0{32}"' wrangler.toml; then
+            echo "mcp/wrangler.toml still has the all-zero KV namespace id" >&2; exit 1
+          fi
+
+      - name: Deploy MCP Worker
+        working-directory: mcp
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Alert on failure
+        if: failure() || cancelled()
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TG_TOKEN" ]; then
+            echo "alert not sent: TG_TOKEN empty" >&2
+            exit 1
+          fi
+          curl -sS --fail-with-body --max-time 20 -o /dev/null \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT_ID}" \
+            --data-urlencode "text=dataset-licence build failed: ${RUN_URL}"

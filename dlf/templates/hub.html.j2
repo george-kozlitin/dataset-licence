@@ -1,0 +1,16 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ {"licence": "Datasets declared as " ~ title, "signal": "Datasets marked " ~ title, "task": "Datasets for task " ~ title}[kind] }}{% if n > 1 %} (page {{ n }}){% endif %}{% endblock %}
+{% block description %}{{ total }} Hugging Face datasets, {{ kind }} {{ title }}, with their licence facts. Page {{ n }} of {{ pages_n }}.{% endblock %}
+{% block body %}
+<h1>{% if kind == "licence" %}Licence: {{ title }}{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
+<p>{{ total }} datasets. Page {{ n }} of {{ pages_n }}.</p>
+<ul class="list">
+{% for e in entries %}
+<li><a href="{{ e.href }}">{{ e.f.id }}</a> <span class="meta">{{ e.f.signal | label }}, {{ e.f.stated_licence or "no licence declared" }}, {{ e.f.downloads }} downloads</span></li>
+{% endfor %}
+</ul>
+<nav class="pager">
+{% if n > 1 %}<a rel="prev" href="{{ base_path }}{% if n > 2 %}page/{{ n - 1 }}/{% endif %}">Previous</a>{% endif %}
+{% if n < pages_n %}<a rel="next" href="{{ base_path }}page/{{ n + 1 }}/">Next</a>{% endif %}
+</nav>
+{% endblock %}

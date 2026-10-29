@@ -1,0 +1,24 @@
+{
+ "id": "m-a-p/FineFineWeb",
+ "owner": "m-a-p",
+ "name": "FineFineWeb",
+ "downloads": 2963028,
+ "likes": 238,
+ "last_modified": "2024-12-19T11:34:03.000Z",
+ "stated_licence": "apache-2.0",
+ "stated_from": "tag",
+ "licence_name": null,
+ "licence_link": null,
+ "file_licence": null,
+ "licence_files": [],
+ "sources": [],
+ "gated": false,
+ "tasks": [
+  "text-classification",
+  "text2text-generation",
+  "text-generation"
+ ],
+ "citation": "@misc{\ntitle={FineFineWeb: A Comprehensive Study on Fine-grained Domain Web Corpus},\nurl={[https://huggingface.co/datasets/m-a-p/FineFineWeb](https://huggingface.co/datasets/m-a-p/FineFineWeb)},\nauthor = {M-A-P, Ge Zhang*, Xinrun Du*, Zhimiao Yu*, Zili Wang*, Zekun Wang, Shuyue Guo, Tianyu Zheng, Kang Zhu, Jerry Liu, Shawn Yue, Binbin Liu, Zhongyuan Peng, Yifan Yao, Jack Yang, Ziming Li, Bingni Zhang, Minghao Liu, Tianyu Liu, Yang Gao, Wenhu Chen, Xiaohuan Zhou, Qian Liu, Taifeng Wang+, Wenhao Huang+},\npublisher={huggingface},\nverision={v0.1.0},\nmonth={December},\nyear={2024}\n}",
+ "signal": "permissive",
+ "reason": "apache-2.0 is a permissive licence"
+}

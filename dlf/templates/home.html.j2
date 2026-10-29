@@ -1,0 +1,29 @@
+{% extends "base.html.j2" %}
+{% block title %}Licence facts for popular Hugging Face datasets{% endblock %}
+{% block description %}Licence facts for the {{ total }} most downloaded Hugging Face datasets, each with its sources and evidence.{% endblock %}
+{% block body %}
+<h1>Licence facts for popular Hugging Face datasets</h1>
+<p>{{ total }} datasets, each with its declared licence, licence files, declared sources and the evidence behind its signal.</p>
+<p class="disclaimer">{{ disclaimer }}</p>
+<p><label for="q">Find a dataset by id</label></p>
+<input id="q" type="search" placeholder="e.g. squad" autocomplete="off">
+<ul id="results" class="list"></ul>
+<noscript><p>Search needs JavaScript. Browse the lists below instead.</p></noscript>
+<h2>By signal</h2>
+<ul>
+{% for s in signals %}
+<li><a href="/signal/{{ s }}/">{{ s | label }}</a>: {{ totals[s] }}</li>
+{% endfor %}
+</ul>
+<h2>Top licence conflicts</h2>
+{% if conflicts %}
+<ul class="list">
+{% for e in conflicts %}
+<li><a href="{{ e.href }}">{{ e.f.id }}</a> <span class="meta">{{ e.f.reason }}</span></li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No conflicts found.</p>
+{% endif %}
+{% endblock %}
+{% block script %}<script src="/search.js" defer></script>{% endblock %}

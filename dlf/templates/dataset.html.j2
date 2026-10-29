@@ -1,0 +1,49 @@
+{% extends "base.html.j2" %}
+{% block title %}{{ f.id }} licence{% endblock %}
+{% block description %}Licence facts for the Hugging Face dataset {{ f.id }}: {{ f.signal | label }}. Declared licence: {{ f.stated_licence or "none" }}.{% endblock %}
+{% block body %}
+<h1>{{ f.id }}</h1>
+<p class="signal signal-{{ f.signal }}">{{ f.signal | label }}</p>
+<p>{{ f.reason }}</p>
+<p class="disclaimer">{{ disclaimer }}</p>
+
+<h2>Evidence</h2>
+<ul>
+<li>Declared licence: {% if f.stated_licence %}<a href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a> (from the {{ f.stated_from }}){% else %}none declared (<a href="/licence/none/">see datasets without one</a>){% endif %}</li>
+{% if f.licence_name or f.licence_link %}
+<li>Licence name on the card: {{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}</li>
+{% endif %}
+<li>Licence files: {% if f.licence_files %}{{ f.licence_files | join(", ") }}{% if f.file_licence %}, detected as {{ f.file_licence }}{% else %}, licence not detected{% endif %}{% else %}none found{% endif %}</li>
+<li>Gated: {% if f.gated is string and f.gated == "manual" %}yes, manual approval{% elif f.gated %}yes{% else %}no{% endif %}</li>
+</ul>
+
+<h2>Declared sources</h2>
+{% if sources %}
+<ul>
+{% for s in sources %}
+<li>{% if s.href and s.found %}<a href="{{ s.href }}">{{ s.id }}</a>{% elif s.hf and s.found %}<a href="{{ hf(s.id) }}">{{ s.id }}</a>{% else %}{{ s.id }}{% endif %}: {% if s.found %}{{ s.licence or "no licence stated" }}{% else %}not found{% endif %}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No sources declared.</p>
+{% endif %}
+
+<h2>Signal</h2>
+<p>See all datasets marked <a href="/signal/{{ f.signal }}/">{{ f.signal | label }}</a>.</p>
+{% if task_links %}
+<h2>Tasks</h2>
+<ul>
+{% for name, slug in task_links %}
+<li><a href="/task/{{ slug }}/">{{ name }}</a></li>
+{% endfor %}
+</ul>
+{% endif %}
+
+{% if f.citation %}
+<h2>Citation text from the card</h2>
+<pre>{{ f.citation }}</pre>
+{% endif %}
+
+<p>Downloads (30 days): {{ f.downloads }}. Likes: {{ f.likes }}. Last modified: {{ f.last_modified }}.</p>
+<p><a href="{{ hf(f.id) }}">View {{ f.id }} on Hugging Face</a> | <a href="{{ json_href }}">JSON</a></p>
+{% endblock %}

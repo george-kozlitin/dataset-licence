@@ -1,0 +1,20 @@
+{
+ "id": "hallucinations-leaderboard/results",
+ "owner": "hallucinations-leaderboard",
+ "name": "results",
+ "downloads": 3260940,
+ "likes": 24,
+ "last_modified": "2024-10-31T20:32:52.000Z",
+ "stated_licence": "apache-2.0",
+ "stated_from": "tag",
+ "licence_name": null,
+ "licence_link": null,
+ "file_licence": null,
+ "licence_files": [],
+ "sources": [],
+ "gated": false,
+ "tasks": [],
+ "citation": null,
+ "signal": "permissive",
+ "reason": "apache-2.0 is a permissive licence"
+}

@@ -1,0 +1,12 @@
+name = "dataset-licence-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+SITE_URL = "https://datalicense.uk"
+
+[[kv_namespaces]]
+binding = "STATS"
+id = "2f1fa9f5479d4c5187a4f18c67bb4001"
+
+# Secrets (set with `wrangler secret put`): MCP_SALT, MCP_STATS_SECRET

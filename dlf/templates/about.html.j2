@@ -1,0 +1,24 @@
+{% extends "base.html.j2" %}
+{% block title %}About{% endblock %}
+{% block description %}How the licence signals on this site are worked out, and what they do not cover.{% endblock %}
+{% block body %}
+<h1>About</h1>
+<p>{{ disclaimer }}</p>
+<h2>Where the facts come from</h2>
+<p>For each dataset we read its public Hugging Face entry: the licence tag, the dataset card, the names of its files, and any LICENSE file. If the card names other datasets as its sources, we read their licences too. Every page lists what was found and what was not.</p>
+<h2>What the signals mean</h2>
+<ul>
+<li><strong>Permissive licence</strong>: the declared licence is a well-known permissive one, and nothing we checked contradicts it.</li>
+<li><strong>Restricted use</strong>: the declared licence, a licence file, or the card text restricts use, for example to non-commercial purposes.</li>
+<li><strong>Licence conflict</strong>: two things we checked disagree, for example the tag and a LICENSE file, or the tag and a declared source.</li>
+<li><strong>Unclear</strong>: no licence is declared, the licence is not one we recognise, or a source could not be found. A missing source never counts as a permissive one.</li>
+</ul>
+<h2>Limits</h2>
+<p>The signal is a summary of text on the Hub. It does not read the full legal terms, it does not check that the stated licence is correct, and it does not cover the law where you work. Read the licence itself and the dataset card before relying on any dataset.</p>
+<h2>Corrections</h2>
+{% if contact %}
+<p>Found a mistake? Write to <a href="mailto:{{ contact }}">{{ contact }}</a>.</p>
+{% else %}
+<p>Found a mistake? Open the dataset on Hugging Face and check the source text first.</p>
+{% endif %}
+{% endblock %}

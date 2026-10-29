@@ -1,0 +1,9 @@
+.worktrees/
+.superpowers/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+mcp/node_modules
+mcp/dist
