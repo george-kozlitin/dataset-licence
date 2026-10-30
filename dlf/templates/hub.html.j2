@@ -3,17 +3,24 @@
 {% block description %}Licence facts for {{ total }} Hugging Face datasets {% if kind == "licence" and key == "none" %}with no declared licence{% elif kind == "licence" %}with declared licence {{ title }}{% elif kind == "signal" %}marked {{ title }}{% else %}tagged for {{ title }}{% endif %}. Page {{ n }} of {{ pages_n }}.{% endblock %}
 {% block head %}{% if noindex %}<meta name="robots" content="noindex">{% endif %}{% endblock %}
 {% block body %}
+<p class="crumbs"><a href="/">All datasets</a></p>
 <div class="hub-head">
-<h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: <span class="mono">{{ title }}</span>{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
-<p>{{ "{:,}".format(total) }} datasets. Page {{ n }} of {{ pages_n }}.</p>
+<h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: <code>{{ title }}</code>{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
+{% if listed %}
+<p class="sub">{{ "{:,}".format(total) }} datasets. Listed here: the {{ "{:,}".format(listed) }} most downloaded with at least one licence fact found. Page {{ n }} of {{ pages_n }}.</p>
+{% else %}
+<p class="sub">{{ "{:,}".format(total) }} datasets, none with a licence fact found yet.</p>
+{% endif %}
 </div>
 <ul class="rows hub">
 {% for e in entries %}
-<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="tag"><i class="sw {{ tones[e.f.signal] }}"></i>{{ e.f.signal | label }}{% if e.f.stated_evidence %}<a class="lic" href="{{ e.f.stated_evidence }}" title="Evidence: {{ e.f.stated_evidence | ev }}">{{ e.f.stated_licence or "no licence declared" }}</a>{% else %}<span class="lic">{{ e.f.stated_licence or "no licence declared" }}</span>{% endif %}</span><span class="dl">{{ "{:,}".format(e.f.downloads) }} downloads in 30 days</span></li>
+<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="tag"><i class="hx {{ tones[e.f.signal] }}"></i>{{ e.f.signal | label }}{% if e.f.stated_evidence %}<a class="lic" href="{{ e.f.stated_evidence }}" title="Evidence: {{ e.f.stated_evidence | ev }}">{{ e.f.stated_licence or "no licence declared" }}</a>{% else %}<span class="lic">{{ e.f.stated_licence or "no licence declared" }}</span>{% endif %}</span><span class="dl">{{ "{:,}".format(e.f.downloads) }} downloads in 30 days</span></li>
 {% endfor %}
 </ul>
+{% if n > 1 or n < pages_n %}
 <nav class="pager">
 {% if n > 1 %}<a rel="prev" href="{{ base_path }}{% if n > 2 %}page/{{ n - 1 }}/{% endif %}">Previous</a>{% endif %}
 {% if n < pages_n %}<a rel="next" href="{{ base_path }}page/{{ n + 1 }}/">Next</a>{% endif %}
 </nav>
+{% endif %}
 {% endblock %}

@@ -1,42 +1,56 @@
 {% extends "base.html.j2" %}
-{% block title %}Licence facts for popular Hugging Face datasets{% endblock %}
-{% block description %}Licence facts for {{ total }} popular Hugging Face datasets, with recorded source declarations and evidence from automated checks.{% endblock %}
+{% block title %}Licence facts for Hugging Face datasets{% endblock %}
+{% block description %}Licence facts for {{ "{:,}".format(total) }} Hugging Face datasets: the declared licence, top-level licence files, the licences reported by declared source datasets, and a link to the file behind each fact.{% endblock %}
 {% block body %}
 <section class="hero">
 <div>
-<h1>Licence facts for popular Hugging Face datasets</h1>
-<p class="lede">For the {{ "{:,}".format(total) }} most downloaded datasets: the declared licence, licence files at the top level of the repository, sources listed in the card metadata, and possible licence conflicts.</p>
-<label class="search" for="q"><span aria-hidden="true">&gt;</span><input id="q" type="search" placeholder="Dataset ID, e.g. squad" aria-label="Find a dataset by ID" autocomplete="off"></label>
-<ul id="results"></ul>
+<p class="kicker">Licence facts for Hugging Face datasets</p>
+<h1 class="words">{{ words("What the licence says, and where it says it") }}</h1>
+<p class="lead">A dataset's licence tag is set by its author, and the Hub does not check it. For {{ "{:,}".format(total) }} public datasets, we compare the tag with top-level licence files and with the licences reported by source datasets listed in the card metadata. Every fact links to the file it was read from.</p>
+<div class="sarea" id="sarea"><div class="sbox" id="sbox"><div class="s-bar">
+<button class="s-icon" type="button" aria-label="Open search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+<input id="q" type="search" placeholder="Dataset ID, for example google/xtreme" aria-label="Find a dataset by ID" autocomplete="off" spellcheck="false">
+<button class="s-toggle" type="button" aria-label="Open search"><i></i></button></div>
+<ul class="s-list" id="results" role="listbox"></ul></div>
+<p class="s-hint">Search the 50,000 most downloaded <kbd>/</kbd></p></div>
 <div id="live" aria-live="polite"></div>
-<noscript><p class="hint">Search needs JavaScript. Browse the lists below instead.</p></noscript>
-{% if examples %}<p class="hint">Try {% for e in examples %}<a href="{{ e.href }}">{{ e.f.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+<noscript><p class="try">Search needs JavaScript. Browse the lists below instead.</p></noscript>
+{% if examples %}<p class="try">Try {% for e in examples %}<a href="{{ e.href }}">{{ e.f.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 </div>
-{% if featured %}
-<figure class="graph draw" style="margin:0">
-{{ featured.svg }}
-<figcaption><span>{{ featured.caption }}</span><a href="{{ featured.href }}">Open {{ featured.f.id }}</a></figcaption>
-</figure>
-{% endif %}
+<div class="cut">{{ cut }}<div class="cap">datasets checked</div></div>
 </section>
 
-<section class="dist" aria-labelledby="dist">
-<div class="dist-head"><h2 id="dist">{{ "{:,}".format(total) }} datasets by signal</h2><p>Rebuilt every Monday from the Hugging Face Hub</p></div>
-<div class="meter" aria-hidden="true">{% for s in signals %}{% if totals[s] %}<i class="sw {{ tones[s] }}" style="flex:{{ totals[s] }};min-width:6px"></i>{% endif %}{% endfor %}</div>
-<ul class="legend">
+{% if featured %}
+<section class="section inherit" aria-labelledby="inherit">
+<div>
+<h2 id="inherit">Licences of source datasets</h2>
+<p class="sub">We also check the licence metadata of source datasets listed in the dataset card metadata. When a source reports a licence in a different category from the dataset's declared licence, we flag a possible licence conflict.</p>
+<p class="open"><a href="{{ featured.href }}">Open {{ featured.f.id }}</a></p>
+</div>
+<figure class="board">
+{{ featured.svg }}
+<figcaption class="note">{{ featured.caption }}</figcaption>
+</figure>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="dist">
+<h2 id="dist">By signal</h2>
+<p class="sub">Updated daily from the Hugging Face Hub.</p>
+<ul class="signals">
 {% for s in signals %}
-<li><a href="/signal/{{ s }}/"><b>{{ "{:,}".format(totals[s]) }}</b><span><i class="sw {{ tones[s] }}"></i>{{ s | label }}</span></a></li>
+<li><a class="sig" href="/signal/{{ s }}/"><span class="n" data-n="{{ totals[s] }}">{{ "{:,}".format(totals[s]) }}</span><span class="l"><i class="hx {{ tones[s] }}"></i>{{ s | label }}</span></a></li>
 {% endfor %}
 </ul>
 </section>
 
-<section class="list" aria-labelledby="conf">
-<h2 id="conf">Possible licence conflicts among the most downloaded</h2>
+<section class="section" id="conflicts" aria-labelledby="conf">
+<h2 id="conf">Possible licence conflicts</h2>
 {% if conflicts %}
 <p class="sub">The declared licence is in a different category from a licence detected in a repository file or reported by a declared source. This indicates a possible licence conflict.</p>
 <ul class="rows">
 {% for e in conflicts %}
-<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="why">{{ e.f.reason }}</span>{% if e.pair %}<span class="pair">{% if e.pair_ev[0] %}<a href="{{ e.pair_ev[0] }}" title="Evidence: {{ e.pair_ev[0] | ev }}">{{ e.pair[0] }}</a>{% else %}{{ e.pair[0] }}{% endif %}<span class="x" aria-label="and">×</span>{% if e.pair_ev[1] %}<a href="{{ e.pair_ev[1] }}" title="Evidence: {{ e.pair_ev[1] | ev }}">{{ e.pair[1] }}</a>{% else %}{{ e.pair[1] }}{% endif %}</span>{% else %}<span></span>{% endif %}</li>
+<li><div><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><p>{{ e.f.reason }}</p></div>{% if e.pair %}<div class="pair">{% if e.pair_ev[0] %}<a class="chip" href="{{ e.pair_ev[0] }}" title="Evidence: {{ e.pair_ev[0] | ev }}">{{ e.pair[0] }}</a>{% else %}<span class="chip">{{ e.pair[0] }}</span>{% endif %}<span class="x" aria-label="and">×</span>{% if e.pair_ev[1] %}<a class="chip bad" href="{{ e.pair_ev[1] }}" title="Evidence: {{ e.pair_ev[1] | ev }}">{{ e.pair[1] }}</a>{% else %}<span class="chip bad">{{ e.pair[1] }}</span>{% endif %}</div>{% else %}<div></div>{% endif %}</li>
 {% endfor %}
 </ul>
 {% else %}

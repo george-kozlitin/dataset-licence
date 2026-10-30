@@ -121,10 +121,14 @@ def test_exact_files_exist(site):
         "style.css",
         "search.js",
         "live.js",
-        "fonts/archivo.woff2",
-        "fonts/jbmono-400.woff2",
-        "fonts/jbmono-500.woff2",
-        "fonts/OFL.txt",
+        "motion.js",
+        "fonts/josefin-300.woff2",
+        "fonts/josefin-400.woff2",
+        "fonts/josefin-700.woff2",
+        "fonts/jost-400.woff2",
+        "fonts/jost-500.woff2",
+        "fonts/OFL-josefin-sans.txt",
+        "fonts/OFL-jost.txt",
     ]:
         assert (root / rel).is_file(), rel
 
@@ -186,7 +190,7 @@ def test_hub_titles_and_slugs(tmp_path):
     assert "Apache 2.0" in read(tmp_path, "licence/apache-2-0/index.html")
     assert "Question Answering" in read(tmp_path, "task/question-answering/index.html")
     page = read(tmp_path, "d/o/b/index.html")
-    assert "<span>Access gated on Hugging Face</span><span>Yes</span>" in page
+    assert "<dt>Access gated on Hugging Face</dt><dd>Yes</dd>" in page
 
 
 def test_manual_gating(site):
@@ -206,11 +210,14 @@ def test_escaping(site):
     # JSON keeps the raw text but is valid JSON
     j = facts_json(root, "evil/set")
     assert j["citation"] == EVIL
-    # script tags appear only on the home page (live check, search) and the 404 page (live check)
-    expected = {root / "index.html": 2, root / "404.html": 1}
+    # every page: the inline "js" class switch and motion.js; the home page adds live check and search,
+    # the 404 page the live check
+    expected = {root / "index.html": 4, root / "404.html": 3}
     for f in root.rglob("*.html"):
-        n = len(re.findall(r"<script", f.read_text(encoding="utf-8")))
-        assert n == expected.get(f, 0), f
+        t = f.read_text(encoding="utf-8")
+        assert len(re.findall(r"<script", t)) == expected.get(f, 2), f
+        assert '<script>document.documentElement.classList.add("js")</script>' in t, f
+        assert '<script src="/motion.js" defer></script>' in t, f
 
 
 def test_links_and_evidence(site):
@@ -327,8 +334,8 @@ def test_hub_pagination(tmp_path):
 def test_css_and_js(site):
     root, _ = site
     css = read(root, "style.css")
-    assert "max-width" in css and "prefers-reduced-motion" in css and "/fonts/archivo.woff2" in css
-    assert len(read(root, "search.js").encode()) < 3072
+    assert "max-width" in css and "prefers-reduced-motion" in css and "/fonts/josefin-300.woff2" in css
+    assert len(read(root, "search.js").encode()) < 8192
 
 
 def test_404_page(site):
@@ -347,7 +354,7 @@ def test_404_page(site):
 def test_dataset_page_has_lineage_and_hit_row(site):
     root, _ = site
     page = read(root, "d/evil/set/index.html")
-    assert 'class="g-desk"' in page and 'class="g-mob"' in page
+    assert 'class="desk-only"' in page and 'class="mob-only"' in page
     assert "Licence lineage of evil/set" in page
     # the conflict comes from the licence file, so no source row is highlighted
     assert 'class="hit"' not in page
@@ -375,11 +382,15 @@ def test_home_featured_and_pairs(tmp_path):
     render_site(fx, tmp_path, BASE, "2026-10-30")
     home = read(tmp_path, "index.html")
     assert "Declared licence apache-2.0; a declared source reports cc-by-sa-4.0" in home
-    assert 'apache-2.0<span class="x" aria-label="and">×</span>cc-by-sa-4.0' in home
+    assert (
+        '<span class="chip">apache-2.0</span><span class="x" aria-label="and">×</span>'
+        '<span class="chip bad">cc-by-sa-4.0</span>'
+    ) in home
     page = read(tmp_path, "d/o/conf/index.html")
     assert page.count('class="hit"') == 1
     assert (
-        '<tr class="hit"><td><a href="https://huggingface.co/datasets/o/sa">o/sa</a></td>' in page
+        '<li data-k="o/sa" class="hit"><span class="sid"><a href="https://huggingface.co/datasets/o/sa">o/sa</a></span>'
+        in page
     )
 
 
@@ -401,7 +412,7 @@ def test_evidence_links_on_pages_hubs_and_index(tmp_path):
     assert f'<a class="ev" href="{card}">Evidence: README.md at ec5f1f4</a>' in page
     assert f'<a class="ev" href="{tree}">Evidence: file list at ec5f1f4</a>' in page
     assert f'<a class="ev" href="{src}">Evidence: README.md</a>' in page
-    assert f'<a href="{card}">' in page  # the diagram's declared-licence box
+    assert re.search(r'<a class="node" data-k="decl" [^>]*href="' + re.escape(card) + '"', page)  # the diagram's cell
     hub = read(tmp_path, "licence/apache-2-0/index.html")
     assert f'<a class="lic" href="{card}"' in hub
     index = json.loads(read(tmp_path, "data/index.json"))
@@ -425,7 +436,7 @@ def test_pages_beyond_the_static_limit_go_to_shards(tmp_path):
     assert not (tmp_path / "d/o/d2").exists()
     shard = shards.parse(read(tmp_path, f"p/{page_shard('o/d3')}.txt"))
     canonical, html = shard["o/d3"]
-    assert canonical == "o/d3" and "<h1>o/d3</h1>" in html and DISCLAIMER in html
+    assert canonical == "o/d3" and '<h1 class="words"><span class="w" style="--i:0">o/d3</span></h1>' in html and DISCLAIMER in html
     # every page is in the sitemap and in ids.json; facts of every dataset are in the shards
     sitemap = read(tmp_path, "sitemap-1.xml")
     assert f"{BASE}/d/o/d4/" in sitemap
@@ -481,7 +492,7 @@ def test_shard_files_use_the_line_format(tmp_path, monkeypatch):
             assert f.name == page_shard(key) + ".txt" and key == value[0].lower()
             pages[key] = value
     assert sorted(pages) == sorted(f"o/d{i}" for i in range(5, 40))
-    assert pages["o/d7"][0] == "o/D7" and "<h1>o/D7</h1>" in pages["o/d7"][1]
+    assert pages["o/d7"][0] == "o/D7" and '<span class="w" style="--i:0">o/D7</span></h1>' in pages["o/d7"][1]
     facts = {}
     for f in (tmp_path / "data/f").iterdir():
         assert re.fullmatch(r"[0-9a-f]{3}\.txt", f.name), f.name
@@ -551,9 +562,11 @@ def test_hubs_list_indexable_datasets_up_to_the_cap(tmp_path, monkeypatch):
     assert not (tmp_path / f"{hub}/page/4").exists()
     assert 'rel="next" href="/licence/apache-2-0/page/3/"' in pages[1]
     assert 'rel="next"' not in pages[2] and "Page 3 of 3." in pages[2]
+    assert "9 datasets. Listed here: the 6 most downloaded with at least one licence fact found. Page 1 of 3." in pages[0]
     # thin datasets beyond the indexable top are not listed; a hub left empty is not indexed
     none = read(tmp_path, "licence/none/index.html")
     assert "/d/o/t" not in none and '<meta name="robots" content="noindex">' in none
+    assert "3 datasets, none with a licence fact found yet." in none and "Listed here" not in none
     assert "/d/o/t" not in read(tmp_path, "task/rare-task/index.html")
     assert "noindex" not in pages[0]
     sitemap = read(tmp_path, "sitemap-1.xml")
@@ -585,3 +598,53 @@ def test_file_budget_is_checked_before_rendering(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match="files planned"):
         render_site([make()], tmp_path, BASE, "2026-10-30", file_budget=5)
     assert not calls
+
+
+def test_no_duplicate_ids_and_no_google_fonts(site):
+    """Two lineage diagrams share a page (desk and phone); a repeated SVG id loses the visible one's fills."""
+    root, _ = site
+    for f in [*root.rglob("*.html"), root / "style.css"]:
+        t = f.read_text(encoding="utf-8")
+        ids = re.findall(r'\sid="([^"]+)"', t)
+        assert len(ids) == len(set(ids)), (f, sorted(i for i in ids if ids.count(i) > 1))
+        assert "googleapis" not in t and "gstatic" not in t, f
+    page = read(root, "d/evil/set/index.html")
+    assert 'id="lin-face-d"' in page and 'id="lin-face-m"' in page
+
+
+def test_data_keys_shared_by_cells_and_rows(tmp_path):
+    f = make(
+        id="o/conf", owner="o", name="conf", file_licence=None, licence_files=[], signal="conflict",
+        sources=[Source(id="o/sa", licence="cc-by-sa-4.0", found=True), Source(id="o/mit", licence="mit", found=True)],
+    )
+    render_site([f], tmp_path, BASE, "2026-10-30")
+    page = read(tmp_path, "d/o/conf/index.html")
+    for k in ("decl", "file", "o/sa", "o/mit"):
+        # one cell and one edge per diagram, and the row in the facts list or the sources list
+        assert len(re.findall(rf'class="node[^"]*" data-k="{re.escape(k)}"', page)) == 2, k
+        assert len(re.findall(rf'<(?:div|li) data-k="{re.escape(k)}"', page)) == 1, k
+    assert 'class="node hit" data-k="o/sa"' in page
+
+
+def test_home_number_and_copy(site):
+    root, _ = site
+    home = read(root, "index.html")
+    assert "datasets checked" in home and ">3</text>" in home
+    assert "Search the 50,000 most downloaded" in home and "Updated daily from the Hugging Face Hub." in home
+    for bad in ("weekly", "Monday", "popular"):
+        for f in [*root.rglob("*.html"), root / "search.js", root / "live.js", root / "motion.js"]:
+            assert bad not in f.read_text(encoding="utf-8"), (f, bad)
+
+
+@pytest.mark.parametrize(
+    ("n", "text"),
+    [(1, "1"), (28, "28"), (261, "261"), (2826, "2 826"), (28261, "28 261"), (282610, "282 610"), (1108920, "1 108 920")],
+)
+def test_cut_number_is_grouped_and_fits(n, text):
+    from dlf import cut
+
+    assert cut.group_digits(n) == text
+    fs = cut.font_size(text)
+    assert fs * cut.EM_PER_CHAR * len(text) <= cut.W - 16
+    out = str(cut.svg(n))
+    assert out.count(f'font-size="{fs}"') == 3 and out.count(f">{text}</text>") == 3

@@ -13,7 +13,7 @@ from xml.sax.saxutils import escape as xml_escape
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
-from dlf import evidence, lineage, shards
+from dlf import cut, evidence, lineage, shards
 from dlf.facts import DatasetFacts
 from dlf.shards import FACTS_SHARDS, PAGE_SHARDS, page_shard
 
@@ -30,7 +30,7 @@ IDS_LIMIT = 50000  # IDs in data/ids.json (home page search box), most downloade
 # about 4,200 for hubs; hubs number a few hundred keys, and only the few dozen large ones reach the cap.
 HUB_MAX_PAGES = 10
 PAGE_BUFFER = 32 * 1024 * 1024  # bytes of page-shard lines held before they are appended to their files
-ASSETS = ("style.css", "search.js", "live.js", "_worker.js", "_routes.json")
+ASSETS = ("style.css", "search.js", "live.js", "motion.js", "_worker.js", "_routes.json")
 # Files besides assets, fonts, dataset pages, shards, hubs and sitemaps: robots.txt, 404.html, home, about,
 # data/index.json, data/ids.json, sitemap.xml.
 FIXED_FILES = 7
@@ -77,6 +77,13 @@ def _label(signal: str) -> str:
     return SIGNAL_LABELS.get(signal, SIGNAL_LABELS["unclear"])
 
 
+def words(text: str) -> Markup:
+    """Text split into words, each in a span the headline animation lifts in turn."""
+    return Markup(" ").join(
+        Markup('<span class="w" style="--i:{}">{}</span>').format(i, w) for i, w in enumerate(text.split())
+    )
+
+
 def _env() -> Environment:
     env = Environment(
         loader=FileSystemLoader(HERE / "templates"),
@@ -88,6 +95,7 @@ def _env() -> Environment:
     env.filters["ev"] = evidence.label
     env.globals["disclaimer"] = Markup(DISCLAIMER)  # constant, not third-party text
     env.globals["tones"] = SIGNAL_TONES
+    env.globals["words"] = words
     env.globals["hf"] = lambda i: HF + "/".join(quote(p, safe="") for p in i.split("/"))
     return env
 
@@ -314,6 +322,7 @@ def render_site(
                     title=title,
                     entries=chunk,
                     total=len(entries),
+                    listed=len(shown),
                     n=n,
                     pages_n=pages_n,
                     base_path=f"/{kind}/{key}/",
@@ -349,6 +358,7 @@ def render_site(
         featured=featured,
         examples=examples,
         total=len(items),
+        cut=cut.svg(len(items)),
     )
     page("about", "about.html.j2", contact=contact)
 

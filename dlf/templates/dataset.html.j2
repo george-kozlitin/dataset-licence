@@ -4,53 +4,50 @@
 {% block head %}{% if noindex %}<meta name="robots" content="noindex">{% endif %}{% endblock %}
 {% block body %}
 <p class="crumbs"><a href="/">All datasets</a>{% if f.owner %} / {{ f.owner }}{% endif %}</p>
-<div class="ds-head">
+<div class="dhead">
 <div>
-<h1>{{ f.id }}</h1>
+<h1 class="words">{{ words(f.id) }}</h1>
 <div class="meta"><span>{{ "{:,}".format(f.downloads) }} downloads in 30 days</span><span>{{ "{:,}".format(f.likes) }} likes</span>{% if modified %}<span>Last modified {{ modified }}</span>{% endif %}<a href="{{ hf(f.id) }}">View on Hugging Face</a></div>
 </div>
-<a class="plate {{ tones[f.signal] }}" href="/signal/{{ f.signal }}/"><i class="sw {{ tones[f.signal] }}"></i>{{ f.signal | label }}</a>
+<a class="plate {{ tones[f.signal] }}" href="/signal/{{ f.signal }}/"><i class="hx {{ tones[f.signal] }}"></i>{{ f.signal | label }}</a>
 </div>
 
-<section class="verdict">
+<section class="dgrid">
 <div>
 <p class="reason">{{ f.reason }}</p>
-<ul class="facts">
-<li><span>Declared licence</span><span>{% if f.stated_licence %}<a class="mono" href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a>, from the {{ f.stated_from }}{% else %}Not declared in the tag or the card (<a href="/licence/none/">see datasets with no declared licence</a>){% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</span></li>
+<dl class="facts">
+<div data-k="decl"><dt>Declared licence</dt><dd>{% if f.stated_licence %}<a class="lic" href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a>, from the {{ f.stated_from }}{% else %}Not declared in the tag or the card (<a href="/licence/none/">see datasets with no declared licence</a>){% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</dd></div>
 {% if f.licence_name or f.licence_link %}
-<li><span>Licence name on the card</span><span>{{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</span></li>
+<div><dt>Licence name on the card</dt><dd>{{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</dd></div>
 {% endif %}
-<li><span>Licence files</span><span>{% if f.licence_files %}<span class="mono">{{ f.licence_files | join(", ") }}</span>{% if f.file_licence %}, detected as <span class="mono">{{ f.file_licence }}</span>{% else %}, licence not identified{% endif %}{% else %}No licence file at the top level of the repository{% endif %}{% if f.file_evidence %}<a class="ev" href="{{ f.file_evidence }}">Evidence: {{ f.file_evidence | ev }}</a>{% endif %}</span></li>
-<li><span>Declared sources</span><span>{% if sources %}{{ sources | length }}{% else %}None listed in the card metadata{% endif %}</span></li>
-<li><span>Access gated on Hugging Face</span><span>{% if f.gated is string and f.gated == "manual" %}Yes, manual approval required{% elif f.gated %}Yes{% else %}No{% endif %}</span></li>
-</ul>
+<div data-k="file"><dt>Licence files</dt><dd>{% if f.licence_files %}<code>{{ f.licence_files | join(", ") }}</code>{% if f.file_licence %}, detected as <code>{{ f.file_licence }}</code>{% else %}, licence not identified{% endif %}{% else %}No licence file at the top level of the repository{% endif %}{% if f.file_evidence %}<a class="ev" href="{{ f.file_evidence }}">Evidence: {{ f.file_evidence | ev }}</a>{% endif %}</dd></div>
+<div><dt>Declared sources</dt><dd>{% if sources %}{{ sources | length }}{% else %}None listed in the card metadata{% endif %}</dd></div>
+<div><dt>Access gated on Hugging Face</dt><dd>{% if f.gated is string and f.gated == "manual" %}Yes, manual approval required{% elif f.gated %}Yes{% else %}No{% endif %}</dd></div>
+</dl>
 </div>
-<figure class="graph draw" style="margin:0">
+<figure class="board">
 {{ lineage }}
-<figcaption><span>{% if f.signal == "conflict" %}Red marks the licence the signal is based on. {% endif %}Each box links to what was checked: a file, a file list or a Hub record.</span></figcaption>
+<figcaption class="note">{% if f.signal == "conflict" %}Red marks the licence the signal is based on. {% endif %}Each cell links to what was checked: a file, a file list or a Hub record.</figcaption>
 </figure>
 </section>
 
 {% if sources %}
-<section class="srcs" aria-labelledby="src">
+<section class="section" aria-labelledby="src">
 <h2 id="src">Sources listed in the card metadata</h2>
-<table>
-<thead><tr><th>Source</th><th>Reported licence</th><th>Category</th></tr></thead>
-<tbody>
+<ul class="srcs">
 {% for s in sources %}
-<tr{% if s.hit %} class="hit"{% endif %}><td>{% if s.href and s.found %}<a href="{{ s.href }}">{{ s.id }}</a>{% elif s.hf and s.found %}<a href="{{ hf(s.id) }}">{{ s.id }}</a>{% else %}{{ s.id }}{% endif %}</td><td>{% if s.found %}{{ s.licence or "no licence stated" }}{% else %}not found{% endif %}{% if s.evidence %}<a class="ev" href="{{ s.evidence }}">Evidence: {{ s.evidence | ev }}</a>{% endif %}</td><td><span class="tag"><i class="sw {{ s.tone }}"></i>{{ s.category }}</span></td></tr>
+<li data-k="{{ s.id }}"{% if s.hit %} class="hit"{% endif %}><span class="sid">{% if s.href and s.found %}<a href="{{ s.href }}">{{ s.id }}</a>{% elif s.hf and s.found %}<a href="{{ hf(s.id) }}">{{ s.id }}</a>{% else %}{{ s.id }}{% endif %}</span><span class="lic"><i class="hx {{ s.tone }}"></i>{% if s.found %}{{ s.licence or "no licence stated" }}{% else %}not found{% endif %}<span class="cat">{{ s.category }}</span></span>{% if s.evidence %}<a class="ev" href="{{ s.evidence }}">Evidence: {{ s.evidence | ev }}</a>{% endif %}</li>
 {% endfor %}
-</tbody>
-</table>
+</ul>
 </section>
 {% endif %}
 
-<section class="more">
+<section class="section more">
 {% if task_links %}
 <h2>Tasks</h2>
 <ul class="chips">
 {% for name, slug in task_links %}
-<li><a href="/task/{{ slug }}/">{{ name }}</a></li>
+<li><a class="chip" href="/task/{{ slug }}/">{{ name }}</a></li>
 {% endfor %}
 </ul>
 {% endif %}
@@ -58,12 +55,12 @@
 <h2>Citation text from the card</h2>
 <pre class="cite">{{ f.citation }}</pre>
 {% endif %}
-<p class="hint"><a href="/signal/{{ f.signal }}/">All datasets marked {{ f.signal | label }}</a> | <a href="{{ json_href }}">JSON</a></p>
+<p class="links"><a href="/signal/{{ f.signal }}/">All datasets marked {{ f.signal | label }}</a> | <a href="{{ json_href }}">JSON</a></p>
 </section>
 
 <section class="mcp" aria-labelledby="mcp">
 <div>
-<h3 id="mcp">The same facts for your agent</h3>
+<h2 id="mcp">The same facts for your agent</h2>
 <p>A free MCP server at mcp.datalicense.uk/mcp. Connect it from an MCP client such as Claude or Cursor.</p>
 </div>
 <pre><b>dataset_licence</b>({ "id": "{{ f.id }}" })
