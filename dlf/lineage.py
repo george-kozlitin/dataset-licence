@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 
 from markupsafe import Markup, escape
 
+from dlf import evidence
 from dlf.facts import DatasetFacts
 from dlf.licences import _category, normalise
 
@@ -129,72 +132,100 @@ def _short(text: str, n: int) -> str:
     return text if len(text) <= n else text[: n - 1] + "…"
 
 
-def _box(x: float, y: float, w: float, node: Node, n: int, core: bool = False) -> str:
-    cls = "node core" if core else ("node " + node.tone).strip()
-    title = escape(node.title)
-    parts = [f'<g class="{cls}"><title>{title}</title>']
-    if core:
-        parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="44" rx="8"/>')
-        parts.append(f'<text x="{x + w / 2}" y="{y + 27}" text-anchor="middle">{escape(_short(node.title, n))}</text>')
+def _go(url: str | None) -> str:
+    """Hover label of a cell: the file behind it without the commit, or that there is nothing to open."""
+    if not url:
+        return "nothing to open"
+    return re.sub(r" at [0-9a-f]{7}$", "", evidence.label(url))
+
+
+def _hexpts(cx: float, cy: float, r: float) -> str:
+    return " ".join(
+        f"{cx + r * math.cos(math.pi / 3 * i):.1f},{cy + r * math.sin(math.pi / 3 * i):.1f}" for i in range(6)
+    )
+
+
+COLOURS = {"ok": "#4f7f63", "bad": "#a4495a", "warn": "#a27a3c", "": "#b9b7c0"}
+INK = "#45394f"
+
+
+def _board(f: DatasetFacts, cells: list[tuple[str, Node]], desk: bool) -> str:
+    """One diagram: the dataset as an ink hex in the middle, the cells around it, an edge from each cell."""
+    sfx = "d" if desk else "m"
+    emb, face = f"lin-emb-{sfx}", f"lin-face-{sfx}"
+    srcs = cells[2:]
+    if desk:
+        w, h, c, r = 560, 430, (280, 205), 62
+        pos = [(95, 70), (280, 370)] + [(470, 70), (470, 205), (470, 340), (95, 205), (95, 340)][: len(srcs)]
     else:
-        parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="48" rx="8"/>')
-        parts.append(f'<text x="{x + 14}" y="{y + 21}">{escape(_short(node.title, n))}</text>')
-        parts.append(f'<text class="sub" x="{x + 14}" y="{y + 38}">{escape(_short(node.sub, n + 4))}</text>')
-    parts.append("</g>")
-    if node.href and not core:
-        return f'<a href="{escape(node.href)}">' + "".join(parts) + "</a>"
-    return "".join(parts)
-
-
-def _edge(d: str, tone: str, delay: float) -> str:
-    cls = ("edge " + tone).strip()
-    return f'<path class="{cls}" d="{d}" style="animation-delay:{delay:.1f}s"/>'
+        w, c, r = 340, (170, 150), 50
+        rows = -(-len(srcs) // 2)
+        pos = [(170, 46)]
+        for i in range(len(srcs)):
+            last_alone = i == len(srcs) - 1 and len(srcs) % 2
+            pos.append((170 if last_alone else (70, 270)[i % 2], 270 + (i // 2) * 110))
+        file_y = 270 + rows * 110 + (15 if rows else 30)
+        pos.insert(1, (170, file_y))
+        h = file_y + 55
+    label = escape(f"Licence lineage of {f.id}")
+    out = [(
+        f'<svg class="lineage" viewBox="0 0 {w} {h}" role="img" aria-label="{label}"><defs>'
+        f'<filter id="{emb}" x="-30%" y="-30%" width="160%" height="160%">'
+        '<feDropShadow dx="4" dy="5" stdDeviation="5" flood-color="#46506a" flood-opacity=".22"/>'
+        '<feDropShadow dx="-3" dy="-3" stdDeviation="4" flood-color="#fff" flood-opacity=".95"/></filter>'
+        f'<linearGradient id="{face}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7f8f9"/>'
+        '<stop offset="1" stop-color="#e3e5e9"/></linearGradient></defs>'
+    )]
+    for i, ((k, node), (nx, ny)) in enumerate(zip(cells, pos, strict=True)):
+        d = f"M{nx} {ny} L{c[0]} {c[1]}"
+        kind = "solid" if node.tone else "dashed"
+        live = " live" if node.tone == "bad" else ""
+        width = 2 if node.tone == "bad" else 1.3
+        out.append(
+            f'<path class="edge {kind}" data-k="{escape(k)}" style="--d:{0.25 + i * 0.08:.2f}s" pathLength="1" '
+            f'd="{d}" stroke="{COLOURS[node.tone]}" stroke-width="{width}" fill="none"/>'
+            f'<path class="flow{live}" data-k="{escape(k)}" d="{d}" '
+            f'stroke="{COLOURS[node.tone] if node.tone else "#8a8794"}" stroke-width="2.6" fill="none"/>'
+        )
+    # The dataset ID shrinks to fit the core hex, then is cut short; the full ID is in its title.
+    room = 128 if desk else 104
+    fs = max(11.0, min(17.0 if desk else 15.0, room / (0.56 * max(1, len(f.id)))))
+    core_text = _short(f.id, int(room / (0.56 * fs)))
+    out.append(
+        f'<g class="core"><title>{escape(f.id)}</title>'
+        f'<polygon points="{_hexpts(c[0], c[1], r + 14)}" fill="{INK}" filter="url(#{emb})"/>'
+        f'<text x="{c[0]}" y="{c[1] + 6}" text-anchor="middle" font-family="Jost, sans-serif" font-weight="500" '
+        f'font-size="{fs:.1f}" fill="#f6f7f8">{escape(core_text)}</text></g>'
+    )
+    for i, ((k, node), (nx, ny)) in enumerate(zip(cells, pos, strict=True)):
+        bad = node.tone == "bad"
+        stroke = f' stroke="{COLOURS["bad"]}" stroke-width="2"' if bad else ""
+        attrs = f'class="node{" hit" if bad else ""}" data-k="{escape(k)}" style="--d:{0.45 + i * 0.08:.2f}s"'
+        head = f'<a {attrs} href="{escape(node.href)}">' if node.href else f"<g {attrs}>"
+        out.append(
+            head + f"<title>{escape(node.title)}: {escape(node.sub)}</title><g class=\"lift\">"
+            f'<polygon points="{_hexpts(nx, ny, r - 12)}" fill="url(#{face})" filter="url(#{emb})"{stroke}/>'
+            f'<text x="{nx}" y="{ny - 1}" text-anchor="middle" font-family="Jost, sans-serif" font-weight="500" '
+            f'font-size="{13.5 if desk else 12.5}" fill="{COLOURS["bad"] if bad else INK}">'
+            f"{escape(_short(node.title, 14))}</text>"
+            f'<text class="sub" x="{nx}" y="{ny + 16}" text-anchor="middle" font-family="Jost, sans-serif" '
+            f'font-size="{11 if desk else 10.5}" fill="#86838f">{escape(_short(node.sub, 18))}</text>'
+            f'<text class="go" x="{nx}" y="{ny + 16}" text-anchor="middle" font-family="Jost, sans-serif" '
+            f'font-weight="500" font-size="{10.5 if desk else 10}" fill="{COLOURS[node.tone] if node.tone else INK}">'
+            f"{escape(_short(_go(node.href), 22))}{' ↗' if node.href else ''}</text>"
+            "</g>" + ("</a>" if node.href else "</g>")
+        )
+    out.append("</svg>")
+    return "".join(out)
 
 
 def svg(f: DatasetFacts) -> Markup:
-    """Two diagrams: a radial one for wide screens and a vertical one for phones."""
+    """Two diagrams, one for wide screens and one for phones (CSS shows one). SVG ids differ between them:
+    with a shared id the hidden diagram's defs would be used, and the visible one would lose its fills."""
     declared, file_node, srcs = nodes(f)
-    core = Node(f.id, "", "")
-    label = escape(f"Licence lineage of {f.id}")
-
-    # Wide: declared top left, licence file bottom centre, sources on the right and left.
-    cx, cy = 260, 190
-    slots = [(360, 40), (360, 166), (360, 292), (20, 166)]
-    wide = [_edge(f"M{cx} {cy} C 200 120, 140 90, 90 64", declared.tone, 0.2)]
-    boxes = [_box(20, 40, 140, declared, 16)]
-    for i, node in enumerate(srcs):
-        x, y = slots[i]
-        ex = x + 70
-        wide.append(_edge(f"M{cx} {cy} C {(cx + ex) / 2} {cy}, {ex} {y + 24}, {ex} {y + 24}", node.tone, 0.3 + i * 0.1))
-        boxes.append(_box(x, y, 140, node, 16))
-    wide.append(_edge(f"M{cx} {cy} C {cx - 10} 260, {cx - 10} 290, {cx} 318", file_node.tone, 0.7))
-    boxes.append(_box(180, 318, 160, file_node, 18))
-    boxes.append(_box(cx - 80, cy - 22, 160, core, 18, core=True))
-    desk = (
-        f'<svg class="g-desk" viewBox="0 0 520 380" role="img" aria-label="{label}">'
-        + "".join(wide + boxes)
-        + "</svg>"
+    cells = [("decl", declared), ("file", file_node)]
+    more = len(f.sources) > MAX_SOURCES
+    cells += [("more" if more and i == len(srcs) - 1 else s.title, s) for i, s in enumerate(srcs)]
+    return Markup(
+        f'<div class="desk-only">{_board(f, cells, True)}</div><div class="mob-only">{_board(f, cells, False)}</div>'
     )
-
-    # Phone: declared, dataset, sources in a 2-column grid, licence file.
-    rows = -(-len(srcs) // 2) if srcs else 0
-    top_src = 236
-    file_y = top_src + rows * 64 + (30 if rows else 0)
-    height = file_y + 62
-    medges = [_edge("M160 66 V 116", declared.tone, 0.2)]
-    mboxes = [_box(70, 16, 180, declared, 18), _box(70, 116, 180, core, 18, core=True)]
-    for i, node in enumerate(srcs):
-        col, row = i % 2, i // 2
-        x = 8 if col == 0 else 166
-        y = top_src + row * 64
-        ex = x + 73
-        medges.append(_edge(f"M160 160 C 160 200, {ex} 200, {ex} {y}", node.tone, 0.3 + i * 0.1))
-        mboxes.append(_box(x, y, 146, node, 14))
-    medges.append(_edge(f"M160 160 V {file_y}", file_node.tone, 0.7))
-    mboxes.append(_box(70, file_y, 180, file_node, 18))
-    mob = (
-        f'<svg class="g-mob" viewBox="0 0 320 {height}" role="img" aria-label="{label}">'
-        + "".join(medges + mboxes)
-        + "</svg>"
-    )
-    return Markup(desk + mob)

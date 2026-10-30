@@ -1,4 +1,4 @@
-// Live check of a dataset outside the weekly index: asks the Worker, which reads the Hub now.
+// Live check of a dataset that has no page on this site: asks the Worker, which reads the Hub now.
 (function () {
   var API = "https://mcp.datalicense.uk/v1/check?id=";
   var ID_RE = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)?$/;
@@ -47,7 +47,7 @@
     var head = el("div", "live-head");
     head.appendChild(el("h2", "mono", f.id));
     var plate = el("span", "plate " + (TONES[f.signal] || "unk"));
-    plate.appendChild(el("i", "sw " + (TONES[f.signal] || "unk")));
+    plate.appendChild(el("i", "hx " + (TONES[f.signal] || "unk")));
     plate.appendChild(document.createTextNode(LABELS[f.signal] || LABELS.unclear));
     head.appendChild(plate);
     card.appendChild(head);
@@ -68,7 +68,7 @@
     if (f.sources_omitted) fact(list, "Sources not checked", f.sources_omitted + " more listed in the dataset card metadata", null);
     card.appendChild(list);
     var note = el("p", "hint", "Checked live on the Hugging Face Hub, " + when(body.checked_at) +
-      ". This dataset is not in the weekly index, so it has no page on this site. ");
+      ". This dataset has no page on this site yet. ");
     var hf = el("a", null, "View on Hugging Face");
     hf.href = "https://huggingface.co/datasets/" + f.id.split("/").map(encodeURIComponent).join("/");
     note.appendChild(hf);
@@ -108,7 +108,7 @@
     var id = decodeURIComponent(m[1]), box = document.getElementById("live");
     var b = window.dlLiveButton(id, box);
     if (b) {
-      slot.appendChild(el("p", null, id + " is not in the weekly index of popular datasets. You can check its licence facts on the Hub now."));
+      slot.appendChild(el("p", null, id + " has no page on this site yet. You can check its licence facts on the Hub now."));
       slot.appendChild(b);
     }
   }

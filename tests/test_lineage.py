@@ -1,3 +1,5 @@
+import re
+
 from dlf import lineage
 from dlf.facts import DatasetFacts, Source
 from dlf.lineage import conflict_pair, conflict_source, nodes, svg
@@ -69,7 +71,37 @@ def test_nodes_link_to_evidence_and_pair_evidence():
         signal="conflict",
     )
     out = str(svg(f))
-    assert f'<a href="{ev}">' in out and f'<a href="{src_ev}">' in out
+    assert f'data-k="decl" style="--d:0.45s" href="{ev}">' in out
+    assert f'data-k="b" style="--d:0.61s" href="{src_ev}">' in out
     assert 'href="https://huggingface.co/datasets/o/d/tree/abc"' in out
     assert lineage.conflict_evidence(f) == (ev, src_ev)
     assert lineage.conflict_evidence(make()) == (None, None)
+
+
+def test_two_diagrams_with_their_own_svg_ids():
+    out = str(svg(make(sources=[Source("b", "mit", True)])))
+    ids = re.findall(r' id="([^"]+)"', out)
+    assert sorted(ids) == ["lin-emb-d", "lin-emb-m", "lin-face-d", "lin-face-m"]
+    assert out.count("url(#lin-face-d)") == 3 and out.count("url(#lin-face-m)") == 3  # decl, file, source
+
+
+def test_cells_carry_keys_hover_labels_and_flows():
+    ev = "https://huggingface.co/datasets/o/d/blob/0123456789abcdef0123456789abcdef01234567/README.md"
+    f = make(stated_evidence=ev, sources=[Source(f"s{i}", "mit", True) for i in range(6)])
+    out = str(svg(f))
+    for k in ("decl", "file", "s0", "s1", "s2", "more"):
+        assert out.count(f'class="node" data-k="{k}"') == 2, k
+        assert out.count(f'class="edge solid" data-k="{k}"') + out.count(f'class="edge dashed" data-k="{k}"') == 2
+        assert out.count(f'data-k="{k}" d="M') == 2  # the flow path
+    assert out.count('pathLength="1"') == 12
+    assert out.count(">README.md ↗</text>") == 2 and "README.md at" not in out  # the commit is left out
+    assert ">nothing to open</text>" in out  # the licence file cell has no evidence link here
+    assert "<g class=\"node\" data-k=\"file\"" in out  # nothing to open: not a link
+
+
+def test_conflict_edge_is_live_and_no_sources_still_draws():
+    f = make(sources=[Source("a", "mit", True), Source("b", "cc-by-sa-4.0", True)], signal="conflict")
+    out = str(svg(f))
+    assert out.count('class="flow live" data-k="b"') == 2 and out.count("flow live") == 2
+    empty = str(svg(make(id="o/" + "x" * 90, name="x" * 90)))
+    assert empty.count('class="node') == 4 and "…" in empty  # decl and file in both diagrams; long id cut short

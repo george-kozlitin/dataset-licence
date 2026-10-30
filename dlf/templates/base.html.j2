@@ -6,21 +6,23 @@
 <title>{% block title %}{% endblock %} - Dataset licence facts</title>
 <meta name="description" content="{% block description %}{% endblock %}">
 {% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
-<meta name="theme-color" content="#0b1420">
-<link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
+<meta name="theme-color" content="#e9eaed">
+<script>document.documentElement.classList.add("js")</script>
+<link rel="preload" href="/fonts/josefin-300.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/jost-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 {% block head %}{% endblock %}
 </head>
 <body>
-<header class="bar"><div class="wrap">
-<a class="brand" href="/"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="4" fill="#ff8a3d"/><circle cx="3" cy="4" r="2" fill="#4fd1a5"/><circle cx="19" cy="4" r="2" fill="#4fd1a5"/><circle cx="11" cy="20" r="2" fill="#ff5a5f"/><path d="M4.5 5.2 8 8.6M17.5 5.2 14 8.6M11 15v3" stroke="#2a3c55" stroke-width="1.4"/></svg>datalicense</a>
-<nav class="nav"><a class="opt" href="/signal/conflict/">Conflicts</a><a href="/about/#mcp">MCP server</a><a href="/about/">About</a></nav>
-</div></header>
-<main class="wrap">
+<div class="wrap">
+<header class="top"><a class="brand" href="/"><svg viewBox="0 0 26 26" aria-hidden="true"><polygon points="7,3 19,3 25,13 19,23 7,23 1,13" fill="none" stroke="#45394f" stroke-width="1.4"/><polygon points="10,8.5 16,8.5 19,13 16,17.5 10,17.5 7,13" fill="#45394f"/></svg>datalicense</a>
+<nav class="main"><a href="/signal/conflict/">Conflicts</a><a href="/about/#mcp">MCP server</a><a class="opt" href="/about/">About</a></nav></header>
+<main>
 {% block body %}{% endblock %}
-<p class="note">{{ disclaimer }}</p>
 </main>
-<footer><div class="wrap"><span>datalicense.uk</span><span>Data from the Hugging Face Hub. Built {{ built_at }}.</span></div></footer>
+<footer><p>{{ disclaimer }}</p><p>Data from the Hugging Face Hub. Built {{ built_at }}.</p></footer>
+</div>
 {% block script %}{% endblock %}
+<script src="/motion.js" defer></script>
 </body>
 </html>
