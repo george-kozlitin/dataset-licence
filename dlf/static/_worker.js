@@ -60,7 +60,15 @@ export default {
     if (page && validId(page[1])) {
       const id = page[1];
       const entry = await lookup(env, url, `/p/${pageShard(id)}.txt`, id);
-      if (!entry) return notFound(env, url);
+      if (!entry) {
+        // Static pages are not in page shards: another letter case finds the canonical id in the facts shard.
+        const f = await lookup(env, url, `/data/f/${factsShard(id)}.txt`, id);
+        if (f && typeof f.id === "string" && f.id !== id) {
+          const to = "/d/" + f.id.split("/").map(encodeURIComponent).join("/") + "/" + url.search;
+          return new Response(null, { status: 308, headers: { location: to } });
+        }
+        return notFound(env, url);
+      }
       if (!Array.isArray(entry)) return notFound(env, url);
       const [canonical, html] = entry;
       if (canonical !== id || !page[2]) {

@@ -31,6 +31,8 @@ const site = () => assets({
   "/404.html": "<h1>Page not found</h1>",
   [`/p/${pageShard("o/Deep")}.txt`]: shard("o/Deep", ["o/Deep", PAGE]),
   [`/data/f/${factsShard("o/Deep")}.txt`]: shard("o/Deep", { id: "o/Deep", signal: "permissive" }),
+  [`/data/f/${factsShard("top/Fixed")}.txt`]: shard("top/Fixed", { id: "top/Fixed", signal: "permissive" }),
+  "/d/top/Fixed/": "<h1>static</h1>",
 });
 const get = (env: any, path: string, method = "GET") => pagesWorker.fetch(new Request(SITE + path, { method }), env);
 
@@ -94,6 +96,13 @@ describe("Pages worker", () => {
   });
   it("redirects a missing slash and other letter case to the canonical address", async () => {
     for (const [path, to] of [["/d/o/Deep", "/d/o/Deep/"], ["/d/O/deep/", "/d/o/Deep/"], ["/d/o/deep?x=1", "/d/o/Deep/?x=1"]]) {
+      const res = await get(site(), path);
+      expect(res.status, path).toBe(308);
+      expect(res.headers.get("location"), path).toBe(to);
+    }
+  });
+  it("redirects another letter case of a static page, found through the facts shard", async () => {
+    for (const [path, to] of [["/d/top/fixed/", "/d/top/Fixed/"], ["/d/TOP/fixed?x=1", "/d/top/Fixed/?x=1"]]) {
       const res = await get(site(), path);
       expect(res.status, path).toBe(308);
       expect(res.headers.get("location"), path).toBe(to);
