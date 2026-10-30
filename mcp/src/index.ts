@@ -21,7 +21,7 @@ const COUNT_TTL_S = 70 * 86400;
 const MAX_LIMIT = 50;
 const LIVE_TTL_S = 6 * 3600;
 const LIVE_NOTE =
-  `Checked live on the Hugging Face Hub because the dataset is outside the weekly index or a fresh check was requested. Up to ${MAX_SOURCES} declared sources are checked; sources_omitted gives the number of additional declared sources not checked.`;
+  `Checked live on the Hugging Face Hub because the dataset is not in the site's daily build yet or a fresh check was requested. Up to ${MAX_SOURCES} declared sources are checked; sources_omitted gives the number of additional declared sources not checked.`;
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const CORS: Record<string, string> = {
@@ -43,12 +43,12 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Retrieve licence facts for one Hugging Face dataset: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. For datasets in the weekly index of popular datasets, facts come from the index by default. Other public datasets are checked live on the Hugging Face Hub. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Retrieve licence facts for one Hugging Face dataset: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. For datasets in the daily build, facts come from the build by default. Other public datasets are checked live on the Hugging Face Hub. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Dataset ID, for example 'owner/name'." },
-        live: { type: "boolean", description: "Check the Hub now instead of using the weekly index. Datasets outside the index are always checked live." },
+        live: { type: "boolean", description: "Check the Hub now instead of using the facts published by the daily build. Datasets not in the build are always checked live." },
       },
       required: ["id"],
       additionalProperties: false,
@@ -57,7 +57,7 @@ const TOOLS = [
   {
     name: "find_datasets",
     description:
-      "Search the 5,000 most downloaded Hugging Face datasets within the weekly index of 50,000 datasets, returning matches in descending order of download count. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence links to the Hub file, API record or file list checked for a declared licence. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Search the 5,000 most downloaded Hugging Face datasets in the daily build, returning matches in descending order of download count. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence links to the Hub file, API record or file list checked for a declared licence. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
@@ -135,7 +135,7 @@ async function datasetLicence(env: Env, args: any, req: Request, ctx?: Execution
   if (!res.ok) return toolText("Facts are temporarily unavailable.", true);
   let facts: unknown;
   try { facts = await res.json(); } catch { return toolText(`Could not read the published facts for dataset '${id}'. Please try again later.`, true); }
-  return toolText(JSON.stringify({ facts, source: "weekly index", disclaimer: DISCLAIMER, page: `${base(env)}/d/${id}/` }, null, 2));
+  return toolText(JSON.stringify({ facts, source: "daily build", disclaimer: DISCLAIMER, page: `${base(env)}/d/${id}/` }, null, 2));
 }
 
 async function handleCheck(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
