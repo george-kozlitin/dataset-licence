@@ -75,7 +75,8 @@ export default {
     const facts = FACTS_RE.exec(path);
     if (facts && validId(facts[1])) {
       const f = await lookup(env, url, `/data/f/${factsShard(facts[1])}.txt`, facts[1]);
-      if (f && f.id === facts[1]) {
+      // Any letter case: the record carries the canonical id, which search.js links to.
+      if (f) {
         return new Response(request.method === "HEAD" ? null : JSON.stringify(f, null, 1), {
           headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
         });

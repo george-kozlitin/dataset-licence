@@ -106,11 +106,12 @@ describe("Pages worker", () => {
       expect(await res.text(), path).toContain("Page not found");
     }
   });
-  it("serves facts JSON by exact ID", async () => {
+  it("serves facts JSON in any letter case, with the canonical id", async () => {
     const res = await get(site(), "/data/d/o/Deep.json");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: "o/Deep", signal: "permissive" });
-    expect((await get(site(), "/data/d/o/deep.json")).status).toBe(404);
+    expect(await (await get(site(), "/data/d/o/deep.json")).json()).toEqual({ id: "o/Deep", signal: "permissive" });
+    expect((await get(site(), "/data/d/o/none.json")).status).toBe(404);
   });
   it("HEAD has no body", async () => {
     const res = await get(site(), "/d/o/Deep/", "HEAD");
