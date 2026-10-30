@@ -12,7 +12,7 @@ from pathlib import Path
 
 from dlf.facts import build_facts, refresh_facts
 from dlf.hub import Hub, HubError
-from dlf.render import render_site
+from dlf.render import STATIC_PAGES, render_site
 
 SIGNALS = ("permissive", "restrictive", "conflict", "unclear")
 BUDGET = 0.05
@@ -32,6 +32,7 @@ def _parser() -> argparse.ArgumentParser:
         help="directory of facts shards (data/f/*.json) from an earlier build; datasets whose "
         "Hub revision is unchanged are not fetched again",
     )
+    b.add_argument("--static-pages", type=int, default=STATIC_PAGES, help="dataset pages written as files")
     b.add_argument(
         "--deadline-minutes", type=float, default=0,
         help="stop fetching after this long; later datasets use cached facts or wait for the next build",
@@ -106,7 +107,10 @@ def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -
     if not over:
         built_at = datetime.now(UTC).strftime("%Y-%m-%d")
         try:
-            stats = render_site(facts, Path(args.out), args.base_url, built_at, contact=args.contact)
+            stats = render_site(
+                facts, Path(args.out), args.base_url, built_at, contact=args.contact,
+                static_pages=args.static_pages,
+            )
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
             return 2
