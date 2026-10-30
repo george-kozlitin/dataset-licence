@@ -133,7 +133,7 @@ def test_forbidden_phrases_and_em_dash(tmp_path):
     neutral = [make(), make(id="b/c", owner="b", name="c", signal="unclear", stated_licence=None)]
     render_site(neutral, tmp_path, BASE, "2026-10-29", contact="a@b.test")
     for f in tmp_path.rglob("*"):
-        if f.is_file():
+        if f.is_file() and f.parent.name != "fonts":  # binary font files and their licence
             t = f.read_text(encoding="utf-8").lower()
             for bad in ("you may use", "allowed", "safe to use", "—"):
                 assert bad not in t, (f, bad)
@@ -144,7 +144,7 @@ def test_skipped_ids(tmp_path):
     stats = render_site(bad, tmp_path, BASE, "2026-10-29")
     assert stats.pages == 1 and stats.skipped_ids == 2
     for f in tmp_path.rglob("*"):
-        if f.is_file():
+        if f.is_file() and f.parent.name != "fonts":  # binary font files and their licence
             t = f.read_text(encoding="utf-8")
             assert "<b>y" not in t and "&lt;b&gt;y" not in t and "%3Cb" not in t, f
 
