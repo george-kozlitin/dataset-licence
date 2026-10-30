@@ -255,7 +255,7 @@ def test_json_roundtrip(site, facts):
     full = json.loads(read(root, "data/d/acme/permissive-set.json"))
     assert full["id"] == "acme/permissive-set" and full["sources"] == []
     full = json.loads(read(root, "data/d/evil/set.json"))
-    assert full["sources"][1] == {"id": "gone/missing", "licence": None, "found": False}
+    assert full["sources"][1] == {"id": "gone/missing", "licence": None, "found": False, "evidence": None}
 
 
 def test_home(site):
