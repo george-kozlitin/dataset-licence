@@ -198,10 +198,11 @@ def test_escaping(site):
     # JSON keeps the raw text but is valid JSON
     j = json.loads(read(root, "data/d/evil/set.json"))
     assert j["citation"] == EVIL
-    # the only script tag on any html page is the search script on the home page
+    # script tags appear only on the home page (live check, search) and the 404 page (live check)
+    expected = {root / "index.html": 2, root / "404.html": 1}
     for f in root.rglob("*.html"):
         n = len(re.findall(r"<script", f.read_text(encoding="utf-8")))
-        assert n == (1 if f == root / "index.html" else 0), f
+        assert n == expected.get(f, 0), f
 
 
 def test_links_and_evidence(site):
