@@ -2,11 +2,13 @@
 {% block title %}{% if kind == "licence" and key == "none" %}Datasets with no declared licence{% elif kind == "licence" %}Datasets with declared licence: {{ title }}{% elif kind == "signal" %}Datasets marked {{ title }}{% else %}Datasets tagged for task: {{ title }}{% endif %}{% if n > 1 %} (page {{ n }}){% endif %}{% endblock %}
 {% block description %}Licence facts for {{ total }} Hugging Face datasets {% if kind == "licence" and key == "none" %}with no declared licence{% elif kind == "licence" %}with declared licence {{ title }}{% elif kind == "signal" %}marked {{ title }}{% else %}tagged for {{ title }}{% endif %}. Page {{ n }} of {{ pages_n }}.{% endblock %}
 {% block body %}
-<h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: {{ title }}{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
-<p>{{ total }} datasets. Page {{ n }} of {{ pages_n }}.</p>
-<ul class="list">
+<div class="hub-head">
+<h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: <span class="mono">{{ title }}</span>{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
+<p>{{ "{:,}".format(total) }} datasets. Page {{ n }} of {{ pages_n }}.</p>
+</div>
+<ul class="rows hub">
 {% for e in entries %}
-<li><a href="{{ e.href }}">{{ e.f.id }}</a> <span class="meta">{{ e.f.signal | label }}, {{ e.f.stated_licence or "no licence declared" }}, {{ e.f.downloads }} downloads</span></li>
+<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="tag"><i class="sw {{ tones[e.f.signal] }}"></i>{{ e.f.signal | label }}<span class="lic">&nbsp;{{ e.f.stated_licence or "no licence declared" }}</span></span><span class="dl">{{ "{:,}".format(e.f.downloads) }} downloads</span></li>
 {% endfor %}
 </ul>
 <nav class="pager">

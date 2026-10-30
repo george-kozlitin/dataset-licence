@@ -17,7 +17,7 @@ packages = ["dlf"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-dlf = ["templates/*.j2", "static/*"]
+dlf = ["templates/*.j2", "static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -2,8 +2,8 @@
 {% block title %}About{% endblock %}
 {% block description %}How the licence signals on this site are worked out, and what they do not cover.{% endblock %}
 {% block body %}
+<div class="page">
 <h1>About</h1>
-<p>{{ disclaimer }}</p>
 <h2>Where the facts come from</h2>
 <p>For each dataset, we check its public Hugging Face metadata and dataset card. We check the names of its top-level files. We read the opening text of matching licence files and look for known licence identifiers. We also check the licence metadata of source datasets listed in the card metadata. Each page shows what these checks recorded.</p>
 <h2>What the signals mean</h2>
@@ -22,4 +22,7 @@
 <h2>Checking the source</h2>
 <p>If something looks incorrect, compare it with the dataset's current Hugging Face page. This site reflects the information collected for its published build.</p>
 {% endif %}
+<h2 id="mcp">MCP server</h2>
+<p>The same facts are available to AI agents through a free MCP server at <span class="mono">https://mcp.datalicense.uk/mcp</span>. It has two tools: <span class="mono">dataset_licence</span> looks up one dataset by ID, and <span class="mono">find_datasets</span> filters datasets by licence, signal or task.</p>
+</div>
 {% endblock %}

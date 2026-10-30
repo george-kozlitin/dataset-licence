@@ -112,6 +112,10 @@ def test_exact_files_exist(site):
         "404.html",
         "style.css",
         "search.js",
+        "fonts/archivo.woff2",
+        "fonts/jbmono-400.woff2",
+        "fonts/jbmono-500.woff2",
+        "fonts/OFL.txt",
     ]:
         assert (root / rel).is_file(), rel
 
@@ -162,12 +166,12 @@ def test_hub_titles_and_slugs(tmp_path):
     assert "Apache 2.0" in read(tmp_path, "licence/apache-2-0/index.html")
     assert "Question Answering" in read(tmp_path, "task/question-answering/index.html")
     page = read(tmp_path, "d/o/b/index.html")
-    assert "Access gated on Hugging Face: yes<" in page
+    assert "<span>Access gated on Hugging Face</span><span>Yes</span>" in page
 
 
 def test_manual_gating(site):
     root, _ = site
-    assert "yes, manual approval required" in read(root, "d/evil/set/index.html")
+    assert "Yes, manual approval required" in read(root, "d/evil/set/index.html")
 
 
 def test_escaping(site):
@@ -303,7 +307,7 @@ def test_hub_pagination(tmp_path):
 def test_css_and_js(site):
     root, _ = site
     css = read(root, "style.css")
-    assert "max-width" in css and "prefers-color-scheme" in css
+    assert "max-width" in css and "prefers-reduced-motion" in css and "/fonts/archivo.woff2" in css
     assert len(read(root, "search.js").encode()) < 3072
 
 
@@ -316,3 +320,33 @@ def test_404_page(site):
     assert "canonical" not in html
     for f in root.glob("sitemap*.xml"):
         assert "404" not in f.read_text(encoding="utf-8")
+
+
+def test_dataset_page_has_lineage_and_hit_row(site):
+    root, _ = site
+    page = read(root, "d/evil/set/index.html")
+    assert 'class="g-desk"' in page and 'class="g-mob"' in page
+    assert "Licence lineage of evil/set" in page
+    # the conflict comes from the licence file, so no source row is highlighted
+    assert 'class="hit"' not in page
+    assert "Red marks the licence the signal is based on." in page
+
+
+def test_home_featured_and_pairs(tmp_path):
+    fx = [
+        make(),
+        make(
+            id="o/conf", owner="o", name="conf", downloads=800, file_licence=None, licence_files=[],
+            sources=[Source(id="acme/permissive-set", licence="apache-2.0", found=True),
+                     Source(id="o/sa", licence="cc-by-sa-4.0", found=True)],
+            signal="conflict",
+            reason="The declared licence (apache-2.0) may conflict with a source dataset's reported share-alike licence (cc-by-sa-4.0).",
+        ),
+    ]
+    render_site(fx, tmp_path, BASE, "2026-10-30")
+    home = read(tmp_path, "index.html")
+    assert "Declared apache-2.0, with a source under cc-by-sa-4.0" in home
+    assert 'apache-2.0<span class="x" aria-label="and">×</span>cc-by-sa-4.0' in home
+    page = read(tmp_path, "d/o/conf/index.html")
+    assert page.count('class="hit"') == 1
+    assert '<tr class="hit"><td><a href="https://huggingface.co/datasets/o/sa">o/sa</a></td>' in page

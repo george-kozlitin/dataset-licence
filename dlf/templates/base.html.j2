@@ -6,15 +6,21 @@
 <title>{% block title %}{% endblock %} - Dataset licence facts</title>
 <meta name="description" content="{% block description %}{% endblock %}">
 {% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+<meta name="theme-color" content="#0b1420">
+<link rel="preload" href="/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 {% block head %}{% endblock %}
 </head>
 <body>
-<header class="site"><a href="/">Dataset licence facts</a> <a href="/about/">About</a></header>
-<main>
+<header class="bar"><div class="wrap">
+<a class="brand" href="/"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="4" fill="#ff8a3d"/><circle cx="3" cy="4" r="2" fill="#4fd1a5"/><circle cx="19" cy="4" r="2" fill="#4fd1a5"/><circle cx="11" cy="20" r="2" fill="#ff5a5f"/><path d="M4.5 5.2 8 8.6M17.5 5.2 14 8.6M11 15v3" stroke="#2a3c55" stroke-width="1.4"/></svg>datalicense</a>
+<nav class="nav"><a class="opt" href="/signal/conflict/">Conflicts</a><a href="/about/#mcp">MCP server</a><a href="/about/">About</a></nav>
+</div></header>
+<main class="wrap">
 {% block body %}{% endblock %}
+<p class="note">{{ disclaimer }}</p>
 </main>
-<footer class="site"><p>{{ disclaimer }}</p><p>Built {{ built_at }}.</p></footer>
+<footer><div class="wrap"><span>datalicense.uk</span><span>Data from the Hugging Face Hub. Built {{ built_at }}.</span></div></footer>
 {% block script %}{% endblock %}
 </body>
 </html>

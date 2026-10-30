@@ -13,6 +13,7 @@ from xml.sax.saxutils import escape as xml_escape
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
+from dlf import lineage
 from dlf.facts import DatasetFacts
 
 DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
@@ -25,6 +26,8 @@ SIGNAL_LABELS = {
     "conflict": "Possible licence conflict",
     "unclear": "Unclear",
 }
+SIGNAL_TONES = {"permissive": "ok", "restrictive": "warn", "conflict": "bad", "unclear": "unk"}
+CATEGORY_TONES = {"permissive": "ok", "share-alike": "ok", "restrictive": "warn", "unclear": "unk"}
 HF = "https://huggingface.co/datasets/"
 HERE = Path(__file__).parent
 _SIMPLE_ID = re.compile(r"^[\w.-]+(/[\w.-]+)?$")
@@ -65,6 +68,7 @@ def _env() -> Environment:
     )
     env.filters["label"] = _label
     env.globals["disclaimer"] = Markup(DISCLAIMER)  # constant, not third-party text
+    env.globals["tones"] = SIGNAL_TONES
     env.globals["hf"] = lambda i: HF + "/".join(quote(p, safe="") for p in i.split("/"))
     return env
 
@@ -115,22 +119,30 @@ def render_site(
     rendered = {f.id: "/" + p + "/" for f, p in items}
 
     for f, p in items:
-        sources = [
-            {
-                "id": s.id,
-                "licence": s.licence,
-                "found": s.found,
-                "href": rendered.get(s.id),
-                "hf": bool(_SIMPLE_ID.match(s.id)),
-            }
-            for s in f.sources
-        ]
+        hit = lineage.conflict_source(f)
+        sources = []
+        for s in f.sources:
+            cat = lineage.category(s.licence) if s.found else "unclear"
+            sources.append(
+                {
+                    "id": s.id,
+                    "licence": s.licence,
+                    "found": s.found,
+                    "href": rendered.get(s.id),
+                    "hf": bool(_SIMPLE_ID.match(s.id)),
+                    "hit": s.id == hit,
+                    "category": lineage.CATEGORY_LABELS[cat],
+                    "tone": CATEGORY_TONES[cat],
+                }
+            )
         page(
             p,
             "dataset.html.j2",
             lastmod=_date(f.last_modified),
             f=f,
             sources=sources,
+            lineage=lineage.svg(f),
+            modified=_human_date(f.last_modified),
             json_href="/data/" + p + ".json",
             licence_slug=_licence_slug(f),
             task_links=[(t, slugify(t)) for t in f.tasks if slugify(t)],
@@ -180,13 +192,29 @@ def render_site(
 
     # Home and about.
     totals = {s: len(groups["signal"][s]) for s in SIGNALS}
-    conflicts = [e for e in groups["signal"]["conflict"]][:20]
+    conflicts = [dict(e, pair=lineage.conflict_pair(e["f"])) for e in groups["signal"]["conflict"][:20]]
+    featured = None
+    # Prefer a conflict with a source, under a recognised declared licence: it reads best as a diagram.
+    for e in sorted(conflicts, key=lambda e: lineage.conflict_source(e["f"]) is None):
+        if e["pair"] and e["pair"][0] != "custom":
+            a, b = e["pair"]
+            if lineage.conflict_source(e["f"]):
+                caption = f"Declared {a}, with a source under {b}"
+            else:
+                caption = f"Declared {a}, with a licence file detected as {b}"
+            featured = dict(e, svg=lineage.svg(e["f"]), caption=caption)
+            break
+    examples = ([featured] if featured else []) + [
+        {"f": f, "href": "/" + p + "/"} for f, p in items[:3] if not featured or f.id != featured["f"].id
+    ][:2]
     page(
         "",
         "home.html.j2",
         totals=totals,
         signals=SIGNALS,
         conflicts=conflicts,
+        featured=featured,
+        examples=examples,
         total=len(items),
     )
     page("about", "about.html.j2", contact=contact)
@@ -202,6 +230,7 @@ def render_site(
     # Static files.
     for name in ("style.css", "search.js"):
         shutil.copyfile(HERE / "static" / name, out / name)
+    shutil.copytree(HERE / "static" / "fonts", out / "fonts", dirs_exist_ok=True)
     _write(out, "robots.txt", f"User-agent: *\nAllow: /\n\nSitemap: {base}/sitemap.xml\n")
 
     # Sitemaps.
@@ -239,3 +268,12 @@ def render_site(
 def _date(value: str | None) -> str | None:
     m = re.match(r"^\d{4}-\d{2}-\d{2}", value or "")
     return m.group(0) if m else None
+
+
+def _human_date(value: str | None) -> str | None:
+    d = _date(value)
+    if not d:
+        return None
+    y, m, day = d.split("-")
+    months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+    return f"{int(day)} {months[int(m) - 1]} {y}"

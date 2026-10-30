@@ -2,28 +2,45 @@
 {% block title %}Licence facts for popular Hugging Face datasets{% endblock %}
 {% block description %}Licence facts for {{ total }} popular Hugging Face datasets, with recorded source declarations and evidence from automated checks.{% endblock %}
 {% block body %}
+<section class="hero">
+<div>
 <h1>Licence facts for popular Hugging Face datasets</h1>
-<p>{{ total }} datasets, each with its declared licence, licence files, declared sources and the evidence behind its signal.</p>
-<p class="disclaimer">{{ disclaimer }}</p>
-<p><label for="q">Find a dataset by ID</label></p>
-<input id="q" type="search" placeholder="e.g. squad" autocomplete="off">
-<ul id="results" class="list"></ul>
-<noscript><p>Search needs JavaScript. Browse the lists below instead.</p></noscript>
-<h2>By signal</h2>
-<ul>
+<p class="lede">For the {{ "{:,}".format(total) }} most downloaded datasets: the declared licence, the licence files in the repository, the source datasets, and where they disagree.</p>
+<label class="search" for="q"><span aria-hidden="true">&gt;</span><input id="q" type="search" placeholder="Dataset ID, e.g. squad" aria-label="Find a dataset by ID" autocomplete="off"></label>
+<ul id="results"></ul>
+<noscript><p class="hint">Search needs JavaScript. Browse the lists below instead.</p></noscript>
+{% if examples %}<p class="hint">Try {% for e in examples %}<a href="{{ e.href }}">{{ e.f.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+</div>
+{% if featured %}
+<figure class="graph draw" style="margin:0">
+{{ featured.svg }}
+<figcaption><span>{{ featured.caption }}</span><a href="{{ featured.href }}">Open {{ featured.f.id }}</a></figcaption>
+</figure>
+{% endif %}
+</section>
+
+<section class="dist" aria-labelledby="dist">
+<div class="dist-head"><h2 id="dist">{{ "{:,}".format(total) }} datasets by signal</h2><p>Rebuilt every Monday from the Hugging Face Hub</p></div>
+<div class="meter" aria-hidden="true">{% for s in signals %}{% if totals[s] %}<i class="sw {{ tones[s] }}" style="flex:{{ totals[s] }};min-width:6px"></i>{% endif %}{% endfor %}</div>
+<ul class="legend">
 {% for s in signals %}
-<li><a href="/signal/{{ s }}/">{{ s | label }}</a>: {{ totals[s] }}</li>
+<li><a href="/signal/{{ s }}/"><b>{{ "{:,}".format(totals[s]) }}</b><span><i class="sw {{ tones[s] }}"></i>{{ s | label }}</span></a></li>
 {% endfor %}
 </ul>
-<h2>Potential licence conflicts among the most downloaded datasets</h2>
+</section>
+
+<section class="list" aria-labelledby="conf">
+<h2 id="conf">Possible licence conflicts among the most downloaded</h2>
 {% if conflicts %}
-<ul class="list">
+<p class="sub">The declared licence falls into one category, and a licence file or a source dataset falls into another.</p>
+<ul class="rows">
 {% for e in conflicts %}
-<li><a href="{{ e.href }}">{{ e.f.id }}</a> <span class="meta">{{ e.f.reason }}</span></li>
+<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="why">{{ e.f.reason }}</span>{% if e.pair %}<span class="pair">{{ e.pair[0] }}<span class="x" aria-label="and">×</span>{{ e.pair[1] }}</span>{% else %}<span></span>{% endif %}</li>
 {% endfor %}
 </ul>
 {% else %}
-<p>No potential licence conflicts flagged.</p>
+<p class="sub">No potential licence conflicts flagged.</p>
 {% endif %}
+</section>
 {% endblock %}
 {% block script %}<script src="/search.js" defer></script>{% endblock %}
