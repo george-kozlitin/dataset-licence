@@ -413,6 +413,34 @@ def refresh_facts(cached: dict, entry: dict, known: dict[str, dict] | None = Non
     )
 
 
+# Listing fields read by build_facts, refresh_facts and _lookup_source (sources found in the listing).
+ENTRY_KEYS = ("id", "sha", "downloads", "likes", "lastModified", "gated")
+CARD_KEYS = ("license", "license_name", "license_link", "source_datasets", "task_categories")
+
+
+def slim_entry(entry: dict, fetch: bool) -> dict:
+    """A listing entry cut down to the fields this module reads.
+
+    fetch=True keeps what build_facts needs (the cardData keys it falls back to when the card has no
+    front matter, licence-file and README names from siblings). fetch=False keeps only what
+    refresh_facts and a source lookup need: counts, revision, licence tags, cardData.license and
+    whether README.md is listed. Everything else (cardData's dataset_info and configs, description,
+    citation, the full file list) is dropped, which is most of the listing's bytes.
+    """
+    out = {k: entry[k] for k in ENTRY_KEYS if k in entry}
+    tags = [t for t in _as_list(entry.get("tags")) if t.lower().startswith("license:")]
+    if tags:
+        out["tags"] = tags
+    cd = entry.get("cardData")
+    if isinstance(cd, dict):
+        out["cardData"] = {k: cd[k] for k in (CARD_KEYS if fetch else CARD_KEYS[:1]) if k in cd}
+    if isinstance(entry.get("siblings"), list):
+        names = Hub.files_from_entry(entry)
+        keep = [n for n in names if n == "README.md" or (fetch and LICENCE_FILE_RE.match(n))]
+        out["siblings"] = [{"rfilename": n} for n in keep]
+    return out
+
+
 def source_evidence(record: dict, sid: str) -> str:
     """Evidence for a source's licence: its card when the record lists one, else its API record."""
     rev = _str_or_none(record.get("sha"))

@@ -78,6 +78,37 @@ def test_top_datasets_does_not_fetch_second_page_when_first_suffices():
     assert len(env.requests) == 1
 
 
+def test_top_datasets_zero_lists_every_page_and_shapes_entries():
+    def handler(req):
+        if "cursor" not in req.url.params:
+            return httpx.Response(200, json=load("page1.json"), headers={"Link": f'<{NEXT}>; rel="next"'})
+        return httpx.Response(200, json=load("page2.json"))
+
+    env = Env(handler)
+    out = env.hub.top_datasets(0, shape=lambda e: {"id": e["id"]})
+    assert out == [{"id": "a/one"}, {"id": "two"}, {"id": "b/three"}, {"id": "c/four"}]
+    assert len(env.requests) == 2
+
+
+def test_top_datasets_skips_an_entry_repeated_on_the_next_page():
+    def handler(req):
+        if "cursor" not in req.url.params:
+            return httpx.Response(200, json=load("page1.json"), headers={"Link": f'<{NEXT}>; rel="next"'})
+        return httpx.Response(200, json=[{"id": "A/One"}, *load("page2.json")])
+
+    env = Env(handler)
+    assert [d["id"] for d in env.hub.top_datasets(3)] == ["a/one", "two", "b/three"]
+    assert [d["id"] for d in env.hub.top_datasets(0)] == ["a/one", "two", "b/three", "c/four"]
+
+
+def test_top_datasets_is_not_cached():
+    env = Env(lambda r: httpx.Response(200, json=load("page2.json")))
+    env.hub.top_datasets(0)
+    env.hub.top_datasets(0)
+    assert len(env.requests) == 2
+    assert env.hub._cache == {}
+
+
 @pytest.mark.parametrize("status", [401, 403, 404])
 def test_dataset_missing_maps_to_none(status):
     env = Env(lambda r: httpx.Response(status))

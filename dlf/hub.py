@@ -141,22 +141,36 @@ class Hub:
 
     # -- API -------------------------------------------------------------
 
-    def top_datasets(self, n: int) -> list[dict]:
-        def fetch():
-            out: list[dict] = []
-            url: str | None = f"{API}/datasets"
-            params: dict | None = {"sort": "downloads", "direction": "-1", "limit": "1000", "full": "true"}
-            while url and len(out) < n:
-                got = self._get(url, params)
-                if got is None:
-                    raise HubError(f"listing unavailable: {url}")
-                resp, body = got
-                out.extend(json.loads(body))
-                url = resp.links.get("next", {}).get("url")
-                params = None  # the next link already carries the query
-            return out[:n]
+    def top_datasets(self, n: int, shape: Callable[[dict], dict] | None = None) -> list[dict]:
+        """The n most downloaded datasets, or every dataset on the Hub when n <= 0.
 
-        return self._cached(("top", n), fetch)
+        Pages are parsed one at a time and each entry goes through shape (when given) before the
+        next page is read, so the full listing (megabytes of cardData per page) is never held at
+        once. Not cached: a deep copy of hundreds of thousands of entries would double the memory.
+        """
+        out: list[dict] = []
+        seen: set[str] = set()
+        url: str | None = f"{API}/datasets"
+        params: dict | None = {"sort": "downloads", "direction": "-1", "limit": "1000", "full": "true"}
+        while url and (n <= 0 or len(out) < n):
+            got = self._get(url, params)
+            if got is None:
+                raise HubError(f"listing unavailable: {url}")
+            resp, body = got
+            page = json.loads(body)
+            del body
+            for e in page:
+                if n > 0 and len(out) >= n:
+                    break
+                key = str(e.get("id")).lower() if isinstance(e, dict) else None
+                if key is None or key in seen:  # cursor pages over a moving sort can repeat an entry
+                    continue
+                seen.add(key)
+                out.append(shape(e) if shape else e)
+            del page
+            url = resp.links.get("next", {}).get("url")
+            params = None  # the next link already carries the query
+        return out
 
     def dataset(self, id: str) -> dict | None:
         def fetch():

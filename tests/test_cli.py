@@ -4,6 +4,7 @@ from typing import ClassVar
 import pytest
 
 import dlf.__main__ as cli
+from dlf import shards
 from dlf.facts import DatasetFacts
 from dlf.hub import HubError
 
@@ -21,20 +22,33 @@ def fact(id_, signal="permissive"):
 class FakeHub:
     listing: ClassVar[list[dict]] = []
     list_error = False
+    shaped: ClassVar[list[dict]] = []
+    on_list = None  # called once per listing, e.g. to advance a fake clock
 
-    def top_datasets(self, n):
+    def top_datasets(self, n, shape=None):
         if self.list_error:
             raise HubError("listing down")
-        return self.listing[:n]
+        if FakeHub.on_list:
+            FakeHub.on_list()
+        got = self.listing if n <= 0 else self.listing[:n]
+        FakeHub.shaped = [shape(e) for e in got] if shape else list(got)
+        return FakeHub.shaped
 
 
 built: list[str] = []
+
+
+@pytest.fixture(autouse=True)
+def _no_github_output(monkeypatch):
+    """CI sets GITHUB_OUTPUT for the test step itself; builds under test must not write to it."""
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
 
 
 def setup(monkeypatch, n, failing=(), signals=None, list_error=False, unexpected=()):
     built.clear()
     FakeHub.listing = [{"id": f"o/d{i}", "sha": f"rev{i}", "downloads": 100 - i} for i in range(n)]
     FakeHub.list_error = list_error
+    FakeHub.on_list = None
     bad = {f"o/d{i}" for i in failing}
     odd = {f"o/d{i}" for i in unexpected}
 
@@ -160,3 +174,104 @@ def test_failed_fetch_keeps_cached_facts(monkeypatch, tmp_path, capsys):
     setup(monkeypatch, 100, failing=[1])
     assert run(tmp_path, "--cache", cache) == 0
     assert (tmp_path / "site/d/o/d1/index.html").is_file()
+
+
+def test_limit_zero_covers_every_listed_dataset(monkeypatch, tmp_path, capsys):
+    setup(monkeypatch, 7)
+    assert run(tmp_path, "--limit", "0") == 0
+    assert len(built) == 7
+    assert "progress fetched=7 reused=0 stale=0 deferred=0 total=7" in capsys.readouterr().out
+
+
+def test_reused_entries_are_slimmed_fetched_keep_card_fields(monkeypatch, tmp_path):
+    setup(monkeypatch, 2)
+    heavy = {
+        "description": "x" * 1000,
+        "citation": "@misc{...}",
+        "tags": ["license:mit", "task_categories:translation", "size_categories:1K<n<10K"],
+        "cardData": {"license": "mit", "license_name": "n", "task_categories": ["t"], "dataset_info": {"f": 1}},
+        "siblings": [{"rfilename": "README.md"}, {"rfilename": "LICENSE"}, {"rfilename": "data/a.parquet"}],
+    }
+    for e in FakeHub.listing:
+        e.update(heavy)
+    cache = write_cache(tmp_path, [0])  # d0 unchanged, d1 new
+    assert run(tmp_path, "--cache", cache) == 0
+    reused, fetched = FakeHub.shaped
+    for e in (reused, fetched):
+        assert "description" not in e and "citation" not in e
+        assert e["tags"] == ["license:mit"]
+        assert "dataset_info" not in e["cardData"]
+    assert reused["cardData"] == {"license": "mit"}
+    assert reused["siblings"] == [{"rfilename": "README.md"}]
+    assert fetched["cardData"] == {"license": "mit", "license_name": "n", "task_categories": ["t"]}
+    assert fetched["siblings"] == [{"rfilename": "README.md"}, {"rfilename": "LICENSE"}]
+    assert built == ["o/d1"]
+
+
+def test_deadline_counts_listing_time(monkeypatch, tmp_path, capsys):
+    setup(monkeypatch, 3)
+    cache = write_cache(tmp_path, [0])
+    now = [0.0]
+    FakeHub.on_list = lambda: now.__setitem__(0, 61.0)  # listing alone takes past the 1 minute deadline
+    assert run(tmp_path, "--cache", cache, "--deadline-minutes", "1", clock=lambda: now[0]) == 0
+    assert built == []
+    assert "progress fetched=0 reused=1 stale=0 deferred=2 total=3" in capsys.readouterr().out
+
+
+def test_cache_out_written_when_budget_fails(monkeypatch, tmp_path):
+    setup(monkeypatch, 3, failing=[1])
+    cache = write_cache(tmp_path, [1, 2], rev=lambda i: "old" if i == 1 else f"rev{i}")
+    out = tmp_path / "out"
+    assert run(tmp_path, "--cache", cache, "--cache-out", str(out)) == 2  # 1 of 3 failed
+    got = shards.read_facts(out)
+    assert sorted(got) == ["o/d0", "o/d1", "o/d2"]  # fetched, kept on failure, reused
+    assert got["o/d1"]["revision"] == "old"
+    assert not list(out.glob("*.json"))
+    assert not (tmp_path / "site" / "index.html").exists()
+
+
+def test_cache_out_written_when_render_raises(monkeypatch, tmp_path):
+    setup(monkeypatch, 3)
+
+    def boom(*a, **k):
+        raise ValueError("render broke")
+
+    monkeypatch.setattr(cli, "render_site", boom)
+    out = tmp_path / "out"
+    with pytest.raises(ValueError):
+        run(tmp_path, "--cache-out", str(out))
+    assert sorted(shards.read_facts(out)) == ["o/d0", "o/d1", "o/d2"]
+
+
+def test_cache_out_may_be_the_cache_dir_and_drops_removed(monkeypatch, tmp_path):
+    setup(monkeypatch, 2)
+    cache = write_cache(tmp_path, [0, 1, 5])  # o/d5 is no longer on the Hub
+    assert run(tmp_path, "--cache", cache, "--cache-out", cache) == 0
+    assert built == []
+    from pathlib import Path
+
+    got = shards.read_facts(Path(cache))
+    assert sorted(got) == ["o/d0", "o/d1"]
+    assert got["o/d0"]["revision"] == "rev0"
+    assert not list(Path(cache).glob("*.json"))  # the legacy shards were replaced
+
+
+def test_line_shard_cache_is_read(monkeypatch, tmp_path, capsys):
+    from dataclasses import asdict, replace
+
+    setup(monkeypatch, 3)
+    d = tmp_path / "c"
+    shards.write_facts([asdict(replace(fact(f"o/d{i}"), revision=f"rev{i}")) for i in (0, 1)], d)
+    assert run(tmp_path, "--cache", str(d)) == 0
+    assert built == ["o/d2"]
+    assert "progress fetched=1 reused=2 stale=0 deferred=0 total=3" in capsys.readouterr().out
+
+
+def test_github_output_lines(monkeypatch, tmp_path):
+    setup(monkeypatch, 4)
+    gh = tmp_path / "gh_output"
+    gh.write_text("earlier=1\n")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(gh))
+    ticks = iter([0, 0] + [10_000] * 50)
+    assert run(tmp_path, "--deadline-minutes", "1", clock=lambda: next(ticks)) == 0
+    assert gh.read_text() == "earlier=1\ndeferred=3\nfetched=1\n"

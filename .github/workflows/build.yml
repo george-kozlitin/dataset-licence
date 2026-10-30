@@ -1,19 +1,27 @@
 name: build
 
 on:
+  # Daily sync: new datasets are added, changed ones re-fetched, removed ones dropped. While the
+  # catalogue is still being filled, each run that leaves datasets deferred starts the next one.
   schedule:
-    - cron: "17 5 * * 1"
+    - cron: "23 4 * * *"
   workflow_dispatch:
     inputs:
       limit:
-        description: "Datasets to cover (most downloaded first)"
-        default: "50000"
+        description: "Datasets to cover (most downloaded first); 0 = every dataset on the Hub"
+        default: "0"
       deadline_minutes:
         description: "Stop fetching from the Hub after this many minutes"
         default: "285"
 
 permissions:
   contents: read
+  actions: write  # the self-chain step dispatches the next run
+
+# One build at a time: a chained or scheduled run queues behind the running one.
+concurrency:
+  group: build
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -58,32 +66,33 @@ jobs:
       - name: Fall back to the published facts
         run: |
           mkdir -p facts-cache
+          fetch() {  # fetch <ext> <count> <hex digits>: 16 parallel requests; missing shards are skipped
+            for i in $(seq 0 $(($2 - 1))); do printf "%0${3}x\n" "$i"; done | EXT=$1 xargs -P 16 -I{} sh -c \
+              'curl -sf -A datalicense-build "$BASE_URL/data/f/$1.$EXT" -o "facts-cache/$1.$EXT" || rm -f "facts-cache/$1.$EXT"' _ {}
+          }
           if [ -z "$(ls -A facts-cache)" ] && [ -n "$BASE_URL" ]; then
-            for i in $(seq 0 255); do
-              n=$(printf '%02x' "$i")
-              curl -sf -A "datalicense-build" "$BASE_URL/data/f/$n.json" -o "facts-cache/$n.json" || rm -f "facts-cache/$n.json"
-            done
+            fetch txt 1024 3
+            if [ -z "$(ls -A facts-cache)" ]; then fetch json 256 2; fi
           fi
           echo "cache shards: $(ls facts-cache | wc -l)"
 
       - name: Build site
+        id: build
         env:
-          LIMIT: ${{ inputs.limit || '50000' }}
+          LIMIT: ${{ inputs.limit || '0' }}
           DEADLINE: ${{ inputs.deadline_minutes || '285' }}
         run: |
           if [ -z "$BASE_URL" ]; then echo "repository variable BASE_URL is not set" >&2; exit 1; fi
-          args=(--limit "$LIMIT" --out site --base-url "$BASE_URL" --cache facts-cache --deadline-minutes "$DEADLINE")
+          args=(--limit "$LIMIT" --out site --base-url "$BASE_URL" --cache facts-cache --cache-out facts-cache --deadline-minutes "$DEADLINE")
           if [ -n "$CONTACT_EMAIL" ]; then args+=(--contact "$CONTACT_EMAIL"); fi
           python -m dlf build "${args[@]}"
 
+      # The build writes every dataset's facts to facts-cache right after fetching, before
+      # rendering, so a render or budget failure does not lose the run's fetching. When the build
+      # failed before that point, the restored cache is saved again unchanged.
       - name: Save facts cache
-        if: always()
-        run: |
-          if [ -d site/data/f ] && [ -n "$(ls -A site/data/f)" ]; then
-            rm -rf facts-cache && cp -r site/data/f facts-cache
-          fi
-      - uses: actions/cache/save@v4
-        if: always()
+        uses: actions/cache/save@v4
+        if: always() && hashFiles('facts-cache/*') != ''
         with:
           path: facts-cache
           key: facts-${{ github.run_id }}
@@ -111,6 +120,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
+
+      # Chain the next run while the catalogue is not fully fetched. fetched > 0 stops the chain
+      # when a run makes no progress (it would otherwise loop on the same deferred datasets).
+      - name: Start the next run
+        if: fromJSON(steps.build.outputs.deferred || '0') > 0 && fromJSON(steps.build.outputs.fetched || '0') > 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run build.yml --ref "$GITHUB_REF_NAME"
 
       - name: Alert on failure
         if: failure() || cancelled()
