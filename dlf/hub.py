@@ -141,22 +141,30 @@ class Hub:
 
     # -- API -------------------------------------------------------------
 
-    def top_datasets(self, n: int) -> list[dict]:
-        def fetch():
-            out: list[dict] = []
-            url: str | None = f"{API}/datasets"
-            params: dict | None = {"sort": "downloads", "direction": "-1", "limit": "1000", "full": "true"}
-            while url and len(out) < n:
-                got = self._get(url, params)
-                if got is None:
-                    raise HubError(f"listing unavailable: {url}")
-                resp, body = got
-                out.extend(json.loads(body))
-                url = resp.links.get("next", {}).get("url")
-                params = None  # the next link already carries the query
-            return out[:n]
+    def top_datasets(self, n: int, shape: Callable[[dict], dict] | None = None) -> list[dict]:
+        """The n most downloaded datasets, or every dataset on the Hub when n <= 0.
 
-        return self._cached(("top", n), fetch)
+        Pages are parsed one at a time and each entry goes through shape (when given) before the
+        next page is read, so the full listing (megabytes of cardData per page) is never held at
+        once. Not cached: a deep copy of hundreds of thousands of entries would double the memory.
+        """
+        out: list[dict] = []
+        url: str | None = f"{API}/datasets"
+        params: dict | None = {"sort": "downloads", "direction": "-1", "limit": "1000", "full": "true"}
+        while url and (n <= 0 or len(out) < n):
+            got = self._get(url, params)
+            if got is None:
+                raise HubError(f"listing unavailable: {url}")
+            resp, body = got
+            page = json.loads(body)
+            del body
+            if n > 0:
+                page = page[: n - len(out)]
+            out.extend(shape(e) if shape else e for e in page if isinstance(e, dict))
+            del page
+            url = resp.links.get("next", {}).get("url")
+            params = None  # the next link already carries the query
+        return out
 
     def dataset(self, id: str) -> dict | None:
         def fetch():

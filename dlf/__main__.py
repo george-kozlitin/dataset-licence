@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
-import json
+import os
 import sys
 import time
 from collections import Counter
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dlf.facts import build_facts, refresh_facts
+from dlf import shards
+from dlf.facts import build_facts, refresh_facts, slim_entry
 from dlf.hub import Hub, HubError
 from dlf.render import STATIC_PAGES, render_site
 
@@ -23,42 +25,52 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="dlf")
     sub = p.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build", help="build the static site")
-    b.add_argument("--limit", type=int, default=5000)
+    b.add_argument("--limit", type=int, default=5000, help="datasets to cover, most downloaded first; 0 = all")
     b.add_argument("--out", default="site")
     b.add_argument("--base-url", required=True)
     b.add_argument("--contact", default="")
     b.add_argument(
         "--cache", default="",
-        help="directory of facts shards (data/f/*.json) from an earlier build; datasets whose "
-        "Hub revision is unchanged are not fetched again",
+        help="directory of facts shards (*.txt, or the earlier *.json) from an earlier build; datasets "
+        "whose Hub revision is unchanged are not fetched again",
+    )
+    b.add_argument(
+        "--cache-out", default="",
+        help="write the facts of every listed dataset here as shards right after fetching, before "
+        "rendering; may be the --cache directory",
     )
     b.add_argument("--static-pages", type=int, default=STATIC_PAGES, help="dataset pages written as files")
     b.add_argument(
         "--deadline-minutes", type=float, default=0,
-        help="stop fetching after this long; later datasets use cached facts or wait for the next build",
+        help="stop fetching this long after start (listing included); later datasets use cached "
+        "facts or wait for the next build",
     )
     return p
 
 
-def load_cache(path: Path) -> dict[str, dict]:
-    """Facts by lower-case ID from shard files; unreadable shards are skipped."""
-    out: dict[str, dict] = {}
-    for f in sorted(path.glob("*.json")) if path.is_dir() else []:
-        try:
-            shard = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            print(f"warning: unreadable cache shard {f.name}", file=sys.stderr)
-            continue
-        if isinstance(shard, dict):
-            out.update({k: v for k, v in shard.items() if isinstance(v, dict) and "id" in v})
-    return out
+def _report(fetched: int, reused: int, stale: int, deferred: int, total: int) -> None:
+    """The machine-readable progress line, and the step outputs the workflow chains on."""
+    print(f"progress fetched={fetched} reused={reused} stale={stale} deferred={deferred} total={total}")
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as fh:
+            fh.write(f"deferred={deferred}\nfetched={fetched}\n")
 
 
 def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -> int:
     args = _parser().parse_args(argv)
+    started = clock()  # the deadline counts from here, so listing time is included
+    deadline = started + args.deadline_minutes * 60 if args.deadline_minutes > 0 else None
+    cache = shards.read_facts(Path(args.cache)) if args.cache else {}
+
+    def shape(entry: dict) -> dict:
+        cached = cache.get(str(entry.get("id")).lower())
+        same = cached is not None and cached.get("revision") and cached.get("revision") == entry.get("sha")
+        return slim_entry(entry, fetch=not same)
+
     hub = hub_factory()
     try:
-        entries = hub.top_datasets(args.limit)
+        entries = hub.top_datasets(args.limit, shape=shape)
     except HubError as e:
         print(f"error: cannot list datasets: {e}", file=sys.stderr)
         return 2
@@ -67,14 +79,13 @@ def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -
         return 2
 
     total = len(entries)
-    cache = load_cache(Path(args.cache)) if args.cache else {}
     known = {e["id"].lower(): e for e in entries if isinstance(e.get("id"), str)}
-    deadline = clock() + args.deadline_minutes * 60 if args.deadline_minutes > 0 else None
     facts = []
     failed: list[tuple[str, str]] = []
     fetched = reused = stale = deferred = 0
     for i, entry in enumerate(entries, 1):
-        cached = cache.get(str(entry.get("id")).lower())
+        # pop: facts of datasets gone from the Hub are not carried over, and memory is freed as we go
+        cached = cache.pop(str(entry.get("id")).lower(), None)
         same = cached is not None and cached.get("revision") and cached.get("revision") == entry.get("sha")
         try:
             if same:
@@ -91,14 +102,25 @@ def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -
                 fetched += 1
         except Exception as e:  # noqa: BLE001 - one bad dataset must not stop the build
             failed.append((str(entry.get("id")), f"{type(e).__name__}: {e}"))
-            if cached is not None:  # keep last week's facts rather than drop the page
+            if cached is not None:  # keep the last build's facts rather than drop the page
                 try:
                     facts.append(refresh_facts(cached, entry, known))
                 except Exception:  # noqa: BLE001, S110 - the failure is already counted
                     pass
         if i % PROGRESS_EVERY == 0:
             print(f"progress {i}/{total}", file=sys.stderr)
+    cache.clear()
     print(f"fetched {fetched}, reused {reused}, stale {stale}, deferred {deferred}", file=sys.stderr)
+
+    # Saved before rendering and the budget check, so hours of fetching survive either failing.
+    cache_error = False
+    if args.cache_out:
+        try:
+            n = shards.write_facts((asdict(f) for f in facts), Path(args.cache_out))
+            print(f"cache {len(facts)} facts in {n} shards", file=sys.stderr)
+        except OSError as e:
+            print(f"error: cannot write the facts cache: {e}", file=sys.stderr)
+            cache_error = True
 
     # Datasets left for the next build (deadline) are not failures.
     share = len(failed) / max(1, total - deferred)
@@ -113,6 +135,7 @@ def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -
             )
         except RuntimeError as e:
             print(f"error: {e}", file=sys.stderr)
+            _report(fetched, reused, stale, deferred, total)
             return 2
 
     counts = Counter(f.signal for f in facts)
@@ -124,11 +147,12 @@ def main(argv: list[str] | None = None, hub_factory=Hub, clock=time.monotonic) -
     print(f"invalid ids {stats.skipped_ids if stats else 0}", file=sys.stderr)
     for id_, err in failed[:5]:
         print(f"skipped {id_}: {err}", file=sys.stderr)
+    _report(fetched, reused, stale, deferred, total)
     if over:
         print(f"error: {share:.1%} of datasets failed, above the {BUDGET:.0%} budget; nothing written",
               file=sys.stderr)  # fmt: skip
         return 2
-    return 0
+    return 2 if cache_error else 0
 
 
 if __name__ == "__main__":
