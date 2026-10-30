@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from dlf import shards
 from dlf.facts import DatasetFacts, Source
 from dlf.render import DISCLAIMER, RenderStats, render_site, thin
 from dlf.shards import facts_shard, page_shard
@@ -86,7 +87,7 @@ def read(root: Path, rel: str) -> str:
 
 def facts_json(root: Path, id: str) -> dict:
     """What _worker.js serves at /data/d/<id>.json."""
-    return json.loads(read(root, f"data/f/{facts_shard(id)}.json"))[id.lower()]
+    return shards.parse(read(root, f"data/f/{facts_shard(id)}.txt"))[id.lower()]
 
 
 def test_stats(site):
@@ -422,7 +423,7 @@ def test_pages_beyond_the_static_limit_go_to_shards(tmp_path):
     assert stats.static_pages == 2 and stats.pages == 5
     assert (tmp_path / "d/o/d0/index.html").is_file() and (tmp_path / "d/o/d1/index.html").is_file()
     assert not (tmp_path / "d/o/d2").exists()
-    shard = json.loads(read(tmp_path, f"p/{page_shard('o/d3')}.json"))
+    shard = shards.parse(read(tmp_path, f"p/{page_shard('o/d3')}.txt"))
     canonical, html = shard["o/d3"]
     assert canonical == "o/d3" and "<h1>o/d3</h1>" in html and DISCLAIMER in html
     # every page is in the sitemap and in ids.json; facts of every dataset are in the shards
@@ -463,3 +464,124 @@ def test_thin_pages_are_noindex_and_out_of_the_sitemap(tmp_path, monkeypatch):
 def test_file_budget(tmp_path):
     with pytest.raises(RuntimeError, match="above the budget"):
         render_site([make()], tmp_path, BASE, "2026-10-30", file_budget=5)
+
+
+def test_shard_files_use_the_line_format(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    monkeypatch.setattr(r, "PAGE_BUFFER", 1)  # append every page as it is rendered
+    fx = [make(id=f"o/D{i}", owner="o", name=f"D{i}", downloads=100 - i) for i in range(40)]
+    render_site(fx, tmp_path, BASE, "2026-10-30", static_pages=5)
+    pages: dict = {}
+    for f in (tmp_path / "p").iterdir():
+        assert re.fullmatch(r"[0-9a-f]{3}\.txt", f.name), f.name
+        text = f.read_text(encoding="utf-8")
+        assert text.endswith("\n") and all("\t" in row for row in text.splitlines())
+        for key, value in shards.parse(text).items():
+            assert f.name == page_shard(key) + ".txt" and key == value[0].lower()
+            pages[key] = value
+    assert sorted(pages) == sorted(f"o/d{i}" for i in range(5, 40))
+    assert pages["o/d7"][0] == "o/D7" and "<h1>o/D7</h1>" in pages["o/d7"][1]
+    facts = {}
+    for f in (tmp_path / "data/f").iterdir():
+        assert re.fullmatch(r"[0-9a-f]{3}\.txt", f.name), f.name
+        for key, value in shards.parse(f.read_text(encoding="utf-8")).items():
+            assert f.name == facts_shard(key) + ".txt"
+            facts[key] = value
+    assert len(facts) == 40 and facts["o/d0"]["id"] == "o/D0"
+    assert not list(tmp_path.rglob("p/*.json")) and not list(tmp_path.rglob("data/f/*.json"))
+
+
+def test_page_shards_are_appended_not_held(tmp_path):
+    from dlf.render import _ShardAppender
+
+    out = _ShardAppender(tmp_path / "p", limit=100)
+    out.add("o/a", "x" * 10)
+    assert not (tmp_path / "p").exists()  # below the limit: buffered
+    out.add("o/b", "y" * 200)
+    assert out.size == 0 and not out.buffers  # past the limit: written out
+    out.add("o/c", "z")
+    out.flush()
+    lines = {}
+    for f in (tmp_path / "p").iterdir():
+        lines.update(shards.parse(f.read_text(encoding="utf-8")))
+    assert lines == {"o/a": ["o/a", "x" * 10], "o/b": ["o/b", "y" * 200], "o/c": ["o/c", "z"]}
+
+
+def test_stale_shards_of_both_formats_removed(tmp_path, facts):
+    for rel in ("p/abc.json", "p/abc.txt", "data/f/0a.json", "data/f/0ab.txt"):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text("{}")
+    render_site(facts, tmp_path, BASE, "2026-10-29")
+    for rel in ("p/abc.json", "p/abc.txt", "data/f/0a.json", "data/f/0ab.txt"):
+        assert not (tmp_path / rel).exists() or rel == f"data/f/{facts_shard('plain')}.txt", rel
+    assert sorted(x.name for x in (tmp_path / "data/f").iterdir()) == sorted(
+        {facts_shard(f.id) + ".txt" for f in facts}
+    )
+
+
+def test_ids_json_is_capped(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    monkeypatch.setattr(r, "IDS_LIMIT", 3)
+    fx = [make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=100 - i) for i in range(6)]
+    render_site(fx, tmp_path, BASE, "2026-10-30")
+    assert json.loads(read(tmp_path, "data/ids.json")) == ["o/d0", "o/d1", "o/d2"]
+    assert facts_json(tmp_path, "o/d5")["id"] == "o/d5"  # facts of every dataset stay reachable
+
+
+def test_hubs_list_indexable_datasets_up_to_the_cap(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    monkeypatch.setattr(r, "HUB_PAGE_SIZE", 2)
+    monkeypatch.setattr(r, "HUB_MAX_PAGES", 3)
+    monkeypatch.setattr(r, "INDEXABLE_TOP", 2)
+    fx = [make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=100 - i) for i in range(9)]
+    empty = {"stated_licence": None, "stated_from": "none", "licence_files": [], "file_licence": None,
+             "sources": [], "signal": "unclear", "tasks": ["rare-task"]}  # fmt: skip
+    fx += [make(id=f"o/t{i}", owner="o", name=f"t{i}", downloads=50 - i, **empty) for i in range(3)]
+    stats = render_site(fx, tmp_path, BASE, "2026-10-30")
+    # 9 indexable apache-2.0 datasets, 2 per page, capped at 3 pages: the 6 most downloaded
+    hub = "licence/apache-2-0"
+    pages = [read(tmp_path, f"{hub}/index.html")] + [
+        read(tmp_path, f"{hub}/page/{n}/index.html") for n in (2, 3)
+    ]
+    listed = [re.findall(r'class="id" href="/d/(o/d\d)/"', p) for p in pages]
+    assert listed == [["o/d0", "o/d1"], ["o/d2", "o/d3"], ["o/d4", "o/d5"]]
+    assert not (tmp_path / f"{hub}/page/4").exists()
+    assert 'rel="next" href="/licence/apache-2-0/page/3/"' in pages[1]
+    assert 'rel="next"' not in pages[2] and "Page 3 of 3." in pages[2]
+    # thin datasets beyond the indexable top are not listed; a hub left empty is not indexed
+    none = read(tmp_path, "licence/none/index.html")
+    assert "/d/o/t" not in none and '<meta name="robots" content="noindex">' in none
+    assert "/d/o/t" not in read(tmp_path, "task/rare-task/index.html")
+    assert "noindex" not in pages[0]
+    sitemap = read(tmp_path, "sitemap-1.xml")
+    assert f"{BASE}/licence/none/" not in sitemap and f"{BASE}/{hub}/page/3/" in sitemap
+    assert stats.hubs == len(list(tmp_path.glob("licence/**/index.html"))) + len(
+        list(tmp_path.glob("signal/**/index.html"))
+    ) + len(list(tmp_path.glob("task/**/index.html")))
+
+
+def test_file_budget_at_full_scale():
+    """800,000 datasets: a cheap stand-in for the hub keys, shaped like the live site (183 keys at 50,000)."""
+    from dlf.render import FILE_BUDGET, HUB_MAX_PAGES, STATIC_PAGES, hub_pages, planned_files
+
+    n = 800_000
+    # Zipf-like sizes: a few huge keys (signals, common licences and tasks), a long tail of small ones.
+    hub_listed = [n // 4] * 4 + [max(1, n // (k * k)) for k in range(1, 1500)]
+    files = planned_files(n, STATIC_PAGES, hub_listed, sitemap_urls=n)
+    assert files < FILE_BUDGET, files
+    assert hub_pages(n) == HUB_MAX_PAGES and hub_pages(0) == 1 and hub_pages(201) == 2
+    # the fixed part alone: static pages, every page and facts shard, sitemaps of every page
+    assert planned_files(n, STATIC_PAGES, [], sitemap_urls=n) < 15_400
+
+
+def test_file_budget_is_checked_before_rendering(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    calls = []
+    monkeypatch.setattr(r.lineage, "svg", lambda f: calls.append(f) or "")
+    with pytest.raises(RuntimeError, match="files planned"):
+        render_site([make()], tmp_path, BASE, "2026-10-30", file_budget=5)
+    assert not calls

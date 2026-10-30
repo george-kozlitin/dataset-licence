@@ -1,5 +1,7 @@
 // Pages worker: serves dataset pages and facts that are not static files from the shards
-// the generator writes (p/<xxx>.json, data/f/<xx>.json). Shard keys match dlf/shards.py.
+// the generator writes (p/<xxx>.txt, data/f/<xxx>.txt). Shard keys and the line format match dlf/shards.py:
+// a shard is lines "<lower-case id>\t<JSON>\n"; only the requested line is parsed, so a large shard stays
+// within the CPU limit.
 // _routes.json limits it to /d/* and /data/d/*; everything else is served as static files.
 
 const ID = "([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?)";
@@ -12,13 +14,30 @@ export function fnv1a(text) {
   return h >>> 0;
 }
 export const pageShard = (id) => (fnv1a(id.toLowerCase()) % 4096).toString(16).padStart(3, "0");
-export const factsShard = (id) => (fnv1a(id.toLowerCase()) % 256).toString(16).padStart(2, "0");
+export const factsShard = (id) => (fnv1a(id.toLowerCase()) % 1024).toString(16).padStart(3, "0");
 
 const validId = (id) => id.split("/").every((p) => p !== "." && p !== "..");
 
-async function shard(env, url, path) {
+// The value stored under key (a lower-case ID) in shard text, or null.
+export function findLine(text, key) {
+  const head = key + "\t";
+  let at = 0;
+  if (!text.startsWith(head)) {
+    at = text.indexOf("\n" + head) + 1;
+    if (at === 0) return null;
+  }
+  at += head.length;
+  const end = text.indexOf("\n", at);
+  try {
+    return JSON.parse(end < 0 ? text.slice(at) : text.slice(at, end));
+  } catch {
+    return null;
+  }
+}
+
+async function lookup(env, url, path, id) {
   const res = await env.ASSETS.fetch(new Request(new URL(path, url)));
-  return res.ok ? res.json() : null;
+  return res.ok ? findLine(await res.text(), id.toLowerCase()) : null;
 }
 
 async function notFound(env, url) {
@@ -40,8 +59,9 @@ export default {
     const page = PAGE_RE.exec(path);
     if (page && validId(page[1])) {
       const id = page[1];
-      const entry = (await shard(env, url, `/p/${pageShard(id)}.json`))?.[id.toLowerCase()];
+      const entry = await lookup(env, url, `/p/${pageShard(id)}.txt`, id);
       if (!entry) return notFound(env, url);
+      if (!Array.isArray(entry)) return notFound(env, url);
       const [canonical, html] = entry;
       if (canonical !== id || !page[2]) {
         const to = "/d/" + canonical.split("/").map(encodeURIComponent).join("/") + "/" + url.search;
@@ -54,7 +74,7 @@ export default {
 
     const facts = FACTS_RE.exec(path);
     if (facts && validId(facts[1])) {
-      const f = (await shard(env, url, `/data/f/${factsShard(facts[1])}.json`))?.[facts[1].toLowerCase()];
+      const f = await lookup(env, url, `/data/f/${factsShard(facts[1])}.txt`, facts[1]);
       if (f && f.id === facts[1]) {
         return new Response(request.method === "HEAD" ? null : JSON.stringify(f, null, 1), {
           headers: { "content-type": "application/json", "access-control-allow-origin": "*" },

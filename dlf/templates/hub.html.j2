@@ -1,6 +1,7 @@
 {% extends "base.html.j2" %}
 {% block title %}{% if kind == "licence" and key == "none" %}Datasets with no declared licence{% elif kind == "licence" %}Datasets with declared licence: {{ title }}{% elif kind == "signal" %}Datasets marked {{ title }}{% else %}Datasets tagged for task: {{ title }}{% endif %}{% if n > 1 %} (page {{ n }}){% endif %}{% endblock %}
 {% block description %}Licence facts for {{ total }} Hugging Face datasets {% if kind == "licence" and key == "none" %}with no declared licence{% elif kind == "licence" %}with declared licence {{ title }}{% elif kind == "signal" %}marked {{ title }}{% else %}tagged for {{ title }}{% endif %}. Page {{ n }} of {{ pages_n }}.{% endblock %}
+{% block head %}{% if noindex %}<meta name="robots" content="noindex">{% endif %}{% endblock %}
 {% block body %}
 <div class="hub-head">
 <h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: <span class="mono">{{ title }}</span>{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>

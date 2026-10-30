@@ -13,9 +13,9 @@ from xml.sax.saxutils import escape as xml_escape
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
-from dlf import evidence, lineage
+from dlf import evidence, lineage, shards
 from dlf.facts import DatasetFacts
-from dlf.shards import facts_shard, page_shard
+from dlf.shards import FACTS_SHARDS, PAGE_SHARDS, page_shard
 
 DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
 HUB_PAGE_SIZE = 200
@@ -24,6 +24,16 @@ STATIC_PAGES = 10000  # dataset pages written as files; the rest go into page sh
 INDEX_LIMIT = 5000  # rows in data/index.json (find_datasets in the MCP Worker)
 INDEXABLE_TOP = 5000  # the most downloaded stay indexable even when nothing was found (indexed since launch)
 FILE_BUDGET = 19500  # Cloudflare Pages allows 20,000 files per deployment on the free plan
+IDS_LIMIT = 50000  # IDs in data/ids.json (home page search box), most downloaded first: about 1.5 MB
+# Pages per hub (licence, signal, task): the 2,000 most downloaded indexable datasets of each. At 800,000
+# datasets the dataset pages, page and facts shards take 15,120 files and sitemaps about 170, which leaves
+# about 4,200 for hubs; hubs number a few hundred keys, and only the few dozen large ones reach the cap.
+HUB_MAX_PAGES = 10
+PAGE_BUFFER = 32 * 1024 * 1024  # bytes of page-shard lines held before they are appended to their files
+ASSETS = ("style.css", "search.js", "live.js", "_worker.js", "_routes.json")
+# Files besides assets, fonts, dataset pages, shards, hubs and sitemaps: robots.txt, 404.html, home, about,
+# data/index.json, data/ids.json, sitemap.xml.
+FIXED_FILES = 7
 SIGNALS = ("permissive", "restrictive", "conflict", "unclear")
 SIGNAL_LABELS = {
     "permissive": "Permissive or share-alike",
@@ -105,6 +115,58 @@ def thin(f: DatasetFacts) -> bool:
     )
 
 
+class _ShardAppender:
+    """Page-shard lines buffered per shard and appended to p/<xxx>.txt once the buffers pass a size.
+
+    Peak memory is bounded by the buffer size, not by the number of pages.
+    """
+
+    def __init__(self, directory: Path, limit: int) -> None:
+        self.directory, self.limit = directory, limit
+        self.buffers: dict[str, list[str]] = {}
+        self.size = 0
+        self.files: set[str] = set()
+
+    def add(self, id: str, html: str) -> None:
+        row = shards.line(id, [id, html])
+        self.buffers.setdefault(page_shard(id), []).append(row)
+        self.size += len(row)
+        if self.size >= self.limit:
+            self.flush()
+
+    def flush(self) -> None:
+        if self.buffers:
+            self.directory.mkdir(parents=True, exist_ok=True)
+        for key, rows in self.buffers.items():
+            with (self.directory / f"{key}.txt").open("a", encoding="utf-8") as fh:
+                fh.write("".join(rows))
+            self.files.add(key)
+        self.buffers, self.size = {}, 0
+
+
+def hub_pages(listed: int) -> int:
+    """Pages of a hub that lists this many datasets: at least one, at most HUB_MAX_PAGES."""
+    return min(HUB_MAX_PAGES, max(1, -(-listed // HUB_PAGE_SIZE)))
+
+
+def planned_files(
+    datasets: int, static_pages: int, hub_listed: list[int], sitemap_urls: int, sitemap_limit: int = SITEMAP_LIMIT,
+) -> int:
+    """Upper bound of the files a build writes, from counts alone (checked before rendering).
+
+    hub_listed holds, per hub key, how many indexable datasets the hub could list.
+    """
+    hubs = sum(hub_pages(n) for n in hub_listed)
+    fonts = sum(1 for x in (HERE / "static" / "fonts").rglob("*") if x.is_file())
+    static = min(datasets, static_pages)
+    rest = datasets - static
+    sitemaps = max(1, -(-(sitemap_urls + hubs) // max(1, sitemap_limit))) + 1  # + the sitemap index
+    return (
+        static + min(rest, PAGE_SHARDS) + min(datasets, FACTS_SHARDS) + hubs + sitemaps
+        + len(ASSETS) + fonts + FIXED_FILES
+    )
+
+
 def render_site(
     facts: list[DatasetFacts],
     out: Path,
@@ -137,7 +199,7 @@ def render_site(
         if index:
             sitemap_urls.append((base + path, lastmod))
 
-    # Usable datasets and their URL paths.
+    # Usable datasets and their URL paths, most downloaded first.
     items: list[tuple[DatasetFacts, str]] = []
     skipped = 0
     for f in sorted(facts, key=lambda x: (-x.downloads, x.id)):
@@ -147,11 +209,42 @@ def render_site(
         else:
             skipped += 1
     rendered = {f.id: "/" + p + "/" for f, p in items}
+    hidden = [i >= INDEXABLE_TOP and thin(f) for i, (f, _) in enumerate(items)]
 
-    page_shards: dict[str, dict[str, list[str]]] = {}
-    facts_shards: dict[str, dict[str, dict]] = {}
+    # Hub groups: every dataset counts in the totals, only indexable ones are listed.
+    names: dict[tuple[str, str], str] = {}
+    groups: dict[str, dict[str, list]] = {"licence": {}, "signal": {s: [] for s in SIGNALS}, "task": {}}
+    for (f, p), h in zip(items, hidden, strict=True):
+        entry = {"f": f, "href": "/" + p + "/", "hidden": h}
+        ls = _licence_slug(f)
+        names.setdefault(("licence", ls), f.stated_licence or "no licence declared")
+        groups["licence"].setdefault(ls, []).append(entry)
+        groups["signal"].setdefault(f.signal, []).append(entry)
+        seen: set[str] = set()
+        for t in f.tasks:
+            ts = slugify(t)
+            if ts and ts not in seen:
+                seen.add(ts)
+                names.setdefault(("task", ts), t)
+                groups["task"].setdefault(ts, []).append(entry)
+    cap = HUB_MAX_PAGES * HUB_PAGE_SIZE
+    listed = {
+        (kind, key): [e for e in entries if not e["hidden"]][:cap]
+        for kind, by_key in groups.items()
+        for key, entries in by_key.items()
+    }
+
+    # Fail before the long render when the deployment would exceed the file limit.
+    plan = planned_files(
+        len(items), static_pages, [len(v) for v in listed.values()],
+        sitemap_urls=hidden.count(False) + 2, sitemap_limit=sitemap_limit,
+    )
+    if plan > file_budget:
+        raise RuntimeError(f"{plan} files planned in {out}, above the budget of {file_budget}")
+
+    pages_out = _ShardAppender(out / "p", PAGE_BUFFER)
     noindex = 0
-    for i, (f, p) in enumerate(items):
+    for i, ((f, p), h) in enumerate(zip(items, hidden, strict=True)):
         hit = lineage.conflict_source(f)
         sources = []
         for s in f.sources:
@@ -170,15 +263,14 @@ def render_site(
                 }
             )
         keep: dict | None = None if i < static_pages else {}
-        hidden = i >= INDEXABLE_TOP and thin(f)
-        noindex += hidden
+        noindex += h
         page(
             p,
             "dataset.html.j2",
             lastmod=_date(f.last_modified),
             keep=keep,
-            index=not hidden,
-            noindex=hidden,
+            index=not h,
+            noindex=h,
             f=f,
             sources=sources,
             lineage=lineage.svg(f),
@@ -188,49 +280,35 @@ def render_site(
             task_links=[(t, slugify(t)) for t in f.tasks if slugify(t)],
         )
         if keep is not None:
-            page_shards.setdefault(page_shard(f.id), {})[f.id.lower()] = [f.id, keep["html"]]
-        facts_shards.setdefault(facts_shard(f.id), {})[f.id.lower()] = asdict(f)
+            pages_out.add(f.id, keep["html"])
+    pages_out.flush()
+    del rendered
 
-    compact = {"ensure_ascii": True, "separators": (",", ":")}
-    for key, shard in page_shards.items():
-        _write(out, f"p/{key}.json", json.dumps(shard, **compact))
     # Facts of every dataset: served as /data/d/<id>.json by _worker.js, and the next build's cache.
-    for key, shard in facts_shards.items():
-        _write(out, f"data/f/{key}.json", json.dumps(shard, **compact))
+    shards.write_facts((asdict(f) for f, _ in items), out / "data" / "f")
+    compact = {"ensure_ascii": True, "separators": (",", ":")}
     index = [
         [f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence]
         for f, _ in items[:INDEX_LIMIT]
     ]
     _write(out, "data/index.json", json.dumps(index, **compact))
-    _write(out, "data/ids.json", json.dumps([f.id for f, _ in items], **compact))
+    _write(out, "data/ids.json", json.dumps([f.id for f, _ in items[:IDS_LIMIT]], **compact))
 
-    # Hubs.
-    names: dict[tuple[str, str], str] = {}
-    groups: dict[str, dict[str, list]] = {"licence": {}, "signal": {s: [] for s in SIGNALS}, "task": {}}
-    for f, p in items:
-        entry = {"f": f, "href": "/" + p + "/"}
-        ls = _licence_slug(f)
-        names.setdefault(("licence", ls), f.stated_licence or "no licence declared")
-        groups["licence"].setdefault(ls, []).append(entry)
-        groups["signal"].setdefault(f.signal, []).append(entry)
-        seen: set[str] = set()
-        for t in f.tasks:
-            ts = slugify(t)
-            if ts and ts not in seen:
-                seen.add(ts)
-                names.setdefault(("task", ts), t)
-                groups["task"].setdefault(ts, []).append(entry)
+    # Hubs: the most downloaded indexable datasets of each key, at most HUB_MAX_PAGES pages.
     hubs = 0
     for kind, by_key in groups.items():
         for key, entries in sorted(by_key.items()):
-            pages_n = max(1, -(-len(entries) // HUB_PAGE_SIZE))
+            shown = listed[(kind, key)]
+            pages_n = hub_pages(len(shown))
             title = _label(key) if kind == "signal" else names[(kind, key)]
             for n in range(1, pages_n + 1):
                 rel = f"{kind}/{key}" + ("" if n == 1 else f"/page/{n}")
-                chunk = entries[(n - 1) * HUB_PAGE_SIZE : n * HUB_PAGE_SIZE]
+                chunk = shown[(n - 1) * HUB_PAGE_SIZE : n * HUB_PAGE_SIZE]
                 page(
                     rel,
                     "hub.html.j2",
+                    index=bool(chunk),
+                    noindex=not chunk,
                     kind=kind,
                     key=key,
                     title=title,
@@ -283,7 +361,7 @@ def render_site(
     )
 
     # Static files.
-    for name in ("style.css", "search.js", "live.js", "_worker.js", "_routes.json"):
+    for name in ASSETS:
         shutil.copyfile(HERE / "static" / name, out / name)
     shutil.copytree(HERE / "static" / "fonts", out / "fonts", dirs_exist_ok=True)
     _write(out, "robots.txt", f"User-agent: *\nAllow: /\n\nSitemap: {base}/sitemap.xml\n")
