@@ -345,7 +345,7 @@ def test_home_featured_and_pairs(tmp_path):
     ]
     render_site(fx, tmp_path, BASE, "2026-10-30")
     home = read(tmp_path, "index.html")
-    assert "Declared apache-2.0, with a source under cc-by-sa-4.0" in home
+    assert "Declared licence apache-2.0; a declared source reports cc-by-sa-4.0" in home
     assert 'apache-2.0<span class="x" aria-label="and">×</span>cc-by-sa-4.0' in home
     page = read(tmp_path, "d/o/conf/index.html")
     assert page.count('class="hit"') == 1

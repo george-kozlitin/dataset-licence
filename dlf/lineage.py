@@ -82,25 +82,25 @@ def nodes(f: DatasetFacts) -> tuple[Node, Node, list[Node]]:
     """(declared licence, licence file, sources) nodes; the conflict side is tone 'bad'."""
     dcat = _declared_category(f)
     declared = Node(
-        "custom licence" if "custom licence" in f.reason else (normalise(f.stated_licence) or "none declared"),
+        "custom licence" if "custom licence" in f.reason else (normalise(f.stated_licence) or "not declared"),
         "declared licence",
         _tone(dcat),
     )
     if f.licence_files:
         file_node = Node(
-            normalise(f.file_licence) or "not identified",
+            normalise(f.file_licence) or "licence not identified",
             "licence file",
             "bad" if _file_conflict(f) else _tone(category(f.file_licence)),
         )
     else:
-        file_node = Node("no licence file", "repository top level", "")
+        file_node = Node("no licence file", "found at top level", "")
     hit = conflict_source(f)
     ordered = sorted(f.sources, key=lambda s: s.id != hit)
     shown = ordered if len(ordered) <= MAX_SOURCES else ordered[: MAX_SOURCES - 1]
     srcs = [
         Node(
             s.id,
-            (normalise(s.licence) or "no licence stated") if s.found else "not found",
+            (normalise(s.licence) or "no licence in metadata") if s.found else "not found on the Hub",
             "bad" if s.id == hit else _tone(category(s.licence)),
         )
         for s in shown

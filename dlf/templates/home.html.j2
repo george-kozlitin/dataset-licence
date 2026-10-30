@@ -5,7 +5,7 @@
 <section class="hero">
 <div>
 <h1>Licence facts for popular Hugging Face datasets</h1>
-<p class="lede">For the {{ "{:,}".format(total) }} most downloaded datasets: the declared licence, the licence files in the repository, the source datasets, and where they disagree.</p>
+<p class="lede">For the {{ "{:,}".format(total) }} most downloaded datasets: the declared licence, licence files at the top level of the repository, sources listed in the card metadata, and possible licence conflicts.</p>
 <label class="search" for="q"><span aria-hidden="true">&gt;</span><input id="q" type="search" placeholder="Dataset ID, e.g. squad" aria-label="Find a dataset by ID" autocomplete="off"></label>
 <ul id="results"></ul>
 <noscript><p class="hint">Search needs JavaScript. Browse the lists below instead.</p></noscript>
@@ -32,7 +32,7 @@
 <section class="list" aria-labelledby="conf">
 <h2 id="conf">Possible licence conflicts among the most downloaded</h2>
 {% if conflicts %}
-<p class="sub">The declared licence falls into one category, and a licence file or a source dataset falls into another.</p>
+<p class="sub">The declared licence is in a different category from a licence detected in a repository file or reported by a declared source. This indicates a possible licence conflict.</p>
 <ul class="rows">
 {% for e in conflicts %}
 <li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="why">{{ e.f.reason }}</span>{% if e.pair %}<span class="pair">{{ e.pair[0] }}<span class="x" aria-label="and">×</span>{{ e.pair[1] }}</span>{% else %}<span></span>{% endif %}</li>

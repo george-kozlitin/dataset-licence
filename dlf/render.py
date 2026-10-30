@@ -199,9 +199,9 @@ def render_site(
         if e["pair"] and e["pair"][0] != "custom":
             a, b = e["pair"]
             if lineage.conflict_source(e["f"]):
-                caption = f"Declared {a}, with a source under {b}"
+                caption = f"Declared licence {a}; a declared source reports {b}"
             else:
-                caption = f"Declared {a}, with a licence file detected as {b}"
+                caption = f"Declared licence {a}; a repository licence file is detected as {b}"
             featured = dict(e, svg=lineage.svg(e["f"]), caption=caption)
             break
     examples = ([featured] if featured else []) + [
@@ -275,5 +275,5 @@ def _human_date(value: str | None) -> str | None:
     if not d:
         return None
     y, m, day = d.split("-")
-    months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     return f"{int(day)} {months[int(m) - 1]} {y}"

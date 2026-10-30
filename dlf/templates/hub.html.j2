@@ -8,7 +8,7 @@
 </div>
 <ul class="rows hub">
 {% for e in entries %}
-<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="tag"><i class="sw {{ tones[e.f.signal] }}"></i>{{ e.f.signal | label }}<span class="lic">&nbsp;{{ e.f.stated_licence or "no licence declared" }}</span></span><span class="dl">{{ "{:,}".format(e.f.downloads) }} downloads</span></li>
+<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="tag"><i class="sw {{ tones[e.f.signal] }}"></i>{{ e.f.signal | label }}<span class="lic">&nbsp;{{ e.f.stated_licence or "no licence declared" }}</span></span><span class="dl">{{ "{:,}".format(e.f.downloads) }} downloads in 30 days</span></li>
 {% endfor %}
 </ul>
 <nav class="pager">

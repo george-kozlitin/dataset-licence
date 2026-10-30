@@ -3,7 +3,7 @@ from dlf.lineage import conflict_pair, conflict_source, nodes, svg
 
 
 def make(**kw):
-    d = dict(
+    d = dict(  # noqa: C408
         id="o/d", owner="o", name="d", downloads=1, likes=0, last_modified="2026-01-01",
         stated_licence="apache-2.0", stated_from="tag", licence_name=None, licence_link=None,
         file_licence=None, licence_files=[], sources=[], signal="permissive", reason="",
