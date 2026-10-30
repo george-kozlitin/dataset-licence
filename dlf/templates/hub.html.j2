@@ -7,7 +7,7 @@
 <div class="hub-head">
 <h1>{% if kind == "licence" and key == "none" %}No declared licence{% elif kind == "licence" %}Licence: <code>{{ title }}</code>{% elif kind == "signal" %}{{ title }}{% else %}Task: {{ title }}{% endif %}</h1>
 {% if listed %}
-<p class="sub">{{ "{:,}".format(total) }} datasets. Listed here: the {{ "{:,}".format(listed) }} most downloaded with at least one licence fact found. Page {{ n }} of {{ pages_n }}.</p>
+<p class="sub">{{ "{:,}".format(total) }} datasets. Listed here: {{ "{:,}".format(listed) }} of them, most downloaded first. Page {{ n }} of {{ pages_n }}.</p>
 {% else %}
 <p class="sub">{{ "{:,}".format(total) }} datasets, none with a licence fact found yet.</p>
 {% endif %}

@@ -562,7 +562,7 @@ def test_hubs_list_indexable_datasets_up_to_the_cap(tmp_path, monkeypatch):
     assert not (tmp_path / f"{hub}/page/4").exists()
     assert 'rel="next" href="/licence/apache-2-0/page/3/"' in pages[1]
     assert 'rel="next"' not in pages[2] and "Page 3 of 3." in pages[2]
-    assert "9 datasets. Listed here: the 6 most downloaded with at least one licence fact found. Page 1 of 3." in pages[0]
+    assert "9 datasets. Listed here: 6 of them, most downloaded first. Page 1 of 3." in pages[0]
     # thin datasets beyond the indexable top are not listed; a hub left empty is not indexed
     none = read(tmp_path, "licence/none/index.html")
     assert "/d/o/t" not in none and '<meta name="robots" content="noindex">' in none
