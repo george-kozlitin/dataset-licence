@@ -149,6 +149,7 @@ class Hub:
         once. Not cached: a deep copy of hundreds of thousands of entries would double the memory.
         """
         out: list[dict] = []
+        seen: set[str] = set()
         url: str | None = f"{API}/datasets"
         params: dict | None = {"sort": "downloads", "direction": "-1", "limit": "1000", "full": "true"}
         while url and (n <= 0 or len(out) < n):
@@ -158,9 +159,14 @@ class Hub:
             resp, body = got
             page = json.loads(body)
             del body
-            if n > 0:
-                page = page[: n - len(out)]
-            out.extend(shape(e) if shape else e for e in page if isinstance(e, dict))
+            for e in page:
+                if n > 0 and len(out) >= n:
+                    break
+                key = str(e.get("id")).lower() if isinstance(e, dict) else None
+                if key is None or key in seen:  # cursor pages over a moving sort can repeat an entry
+                    continue
+                seen.add(key)
+                out.append(shape(e) if shape else e)
             del page
             url = resp.links.get("next", {}).get("url")
             params = None  # the next link already carries the query

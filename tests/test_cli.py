@@ -252,7 +252,7 @@ def test_cache_out_may_be_the_cache_dir_and_drops_removed(monkeypatch, tmp_path)
 
     got = shards.read_facts(Path(cache))
     assert sorted(got) == ["o/d0", "o/d1"]
-    assert got["o/d0"]["reason"] == "cached"
+    assert got["o/d0"]["revision"] == "rev0"
     assert not list(Path(cache).glob("*.json"))  # the legacy shards were replaced
 
 
