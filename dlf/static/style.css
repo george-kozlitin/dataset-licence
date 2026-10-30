@@ -186,7 +186,11 @@ tr.hit td:first-child { box-shadow: inset 2px 0 0 var(--bad); padding-left: 10px
 .hub-head { padding: 40px 0 20px; }
 .hub-head p { color: var(--muted); margin: 10px 0 0; }
 .rows.hub li { grid-template-columns: minmax(0, 1fr) 290px 13em; }
-.rows .lic { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.rows .lic { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-left: 0.5em; }
+.ev { display: block; width: fit-content; margin-top: 4px; font: 400 12.5px/1.4 var(--mono); color: var(--muted); text-decoration-color: var(--line); overflow-wrap: anywhere; }
+.ev:hover { color: var(--glow); }
+.pair a { color: inherit; }
+.graph svg a:hover .node rect, .graph svg a:focus-visible .node rect { stroke: var(--glow); }
 .rows .dl { font-size: 14px; color: var(--muted); white-space: nowrap; text-align: right; min-width: 7em; }
 .pager { display: flex; gap: 20px; margin: 24px 0 8px; }
 #results { list-style: none; margin: 12px 0 0; padding: 0; max-width: 520px; }

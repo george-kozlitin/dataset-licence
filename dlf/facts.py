@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 import yaml
 
+from dlf import evidence
 from dlf.hub import Hub
 from dlf.licences import classify, normalise
 
@@ -35,6 +36,7 @@ class Source:
     id: str
     licence: str | None
     found: bool
+    evidence: str | None = None  # where the licence was read, pinned to the source's revision
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,10 @@ class DatasetFacts:
     citation: str | None = None
     signal: str = "unclear"
     reason: str = ""
+    revision: str | None = None  # Hub commit the facts were read at
+    stated_evidence: str | None = None  # card or API record behind stated_licence
+    file_evidence: str | None = None  # licence file read, or the file list that was checked
+    card_nc: bool = False  # card wording suggests a custom non-commercial licence
 
 
 # -- licence text detection -----------------------------------------------
@@ -279,21 +285,31 @@ def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
         f for f in (listing or [])
         if isinstance(f, str) and "/" not in f and LICENCE_FILE_RE.match(f)
     ]
+    rev = _str_or_none(entry.get("sha"))
     file_licence = None
+    file_read = files[0] if files else None
     for f in files:
         file_licence = detect_licence_text(hub.raw(id_, f))
         if file_licence:
+            file_read = f
             break
+    file_ev = evidence.file_url(id_, rev, file_read) if file_read else evidence.tree_url(id_, rev)
+    if card is not None:
+        stated_ev = evidence.card_url(id_, rev)
+    elif stated_from != "none":
+        stated_ev = evidence.api_url(id_, rev)
+    else:
+        stated_ev = evidence.tree_url(id_, rev)
 
     sources: list[Source] = []
     for sid in _source_ids(card_data, id_):
         found = hub.dataset(sid) if _valid_source_id(sid) else None
         if found is None:
-            sources.append(Source(sid, None, False))
+            sources.append(Source(sid, None, False, evidence.page_url(sid) if _valid_source_id(sid) else None))
             continue
         cd = found.get("cardData")
         lic, _ = _entry_licence(found, cd if isinstance(cd, dict) else {})
-        sources.append(Source(sid, lic, True))
+        sources.append(Source(sid, lic, True, source_evidence(found, sid)))
 
     custom_nc = _custom_nc(stated, licence_name, body)
     signal, reason = classify(
@@ -331,4 +347,18 @@ def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
         citation=_citation(body),
         signal=signal,
         reason=reason,
+        revision=rev,
+        stated_evidence=stated_ev,
+        file_evidence=file_ev,
+        card_nc=custom_nc,
     )
+
+
+def source_evidence(record: dict, sid: str) -> str:
+    """Evidence for a source's licence: its card when the record lists one, else its API record."""
+    rev = _str_or_none(record.get("sha"))
+    canonical = _str_or_none(record.get("id")) or sid  # legacy aliases redirect to owner/name
+    names = Hub.files_from_entry(record)
+    if "README.md" in names or not isinstance(record.get("siblings"), list):
+        return evidence.card_url(canonical, rev)
+    return evidence.api_url(canonical, rev)

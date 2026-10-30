@@ -35,7 +35,7 @@
 <p class="sub">The declared licence is in a different category from a licence detected in a repository file or reported by a declared source. This indicates a possible licence conflict.</p>
 <ul class="rows">
 {% for e in conflicts %}
-<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="why">{{ e.f.reason }}</span>{% if e.pair %}<span class="pair">{{ e.pair[0] }}<span class="x" aria-label="and">×</span>{{ e.pair[1] }}</span>{% else %}<span></span>{% endif %}</li>
+<li><a class="id" href="{{ e.href }}">{{ e.f.id }}</a><span class="why">{{ e.f.reason }}</span>{% if e.pair %}<span class="pair">{% if e.pair_ev[0] %}<a href="{{ e.pair_ev[0] }}" title="Evidence: {{ e.pair_ev[0] | ev }}">{{ e.pair[0] }}</a>{% else %}{{ e.pair[0] }}{% endif %}<span class="x" aria-label="and">×</span>{% if e.pair_ev[1] %}<a href="{{ e.pair_ev[1] }}" title="Evidence: {{ e.pair_ev[1] | ev }}">{{ e.pair[1] }}</a>{% else %}{{ e.pair[1] }}{% endif %}</span>{% else %}<span></span>{% endif %}</li>
 {% endfor %}
 </ul>
 {% else %}

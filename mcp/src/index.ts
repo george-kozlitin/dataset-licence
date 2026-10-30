@@ -29,7 +29,7 @@ function validId(id: unknown): id is string {
   return typeof id === "string" && ID_RE.test(id) && id.split("/").every((s) => !/^\.+$/.test(s));
 }
 
-type Row = [string, string, string | null, string[], number];
+type Row = [string, string, string | null, string[], number, (string | null)?];
 let indexCache: { at: number; rows: Row[] } | null = null;
 export function _resetCache(): void { indexCache = null; }
 
@@ -37,7 +37,7 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL: the Hub file it was read from, pinned to a commit. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "Dataset ID, for example 'owner/name'." } },
@@ -48,7 +48,7 @@ const TOOLS = [
   {
     name: "find_datasets",
     description:
-      "List popular Hugging Face datasets from the published index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "List popular Hugging Face datasets from the published index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence is the Hub file the declared licence was read from. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
@@ -107,7 +107,10 @@ async function findDatasets(env: Env, args: any) {
       (lic === undefined || (r[2] ?? "").toLowerCase() === lic))
     .sort((x, y) => y[4] - x[4])
     .slice(0, limit)
-    .map(([id, signal, stated_licence, tasks, downloads]) => ({ id, signal, stated_licence, tasks, downloads }));
+    .map(([id, signal, stated_licence, tasks, downloads, licence_evidence]) => ({
+      id, signal, stated_licence, licence_evidence: licence_evidence ?? null, tasks, downloads,
+      page: `${base(env)}/d/${id}/`,
+    }));
   return toolText(JSON.stringify({ datasets: out, count: out.length, disclaimer: DISCLAIMER }, null, 2));
 }
 

@@ -84,7 +84,9 @@ def test_cc_by_with_nc_source_is_conflict():
         entry(tags=["license:cc-by-4.0"], card_data={"source_datasets": ["other/src"]}), hub
     )
     assert f.signal == "conflict"
-    assert f.sources == [Source("other/src", "cc-by-nc-4.0", True)]
+    assert f.sources == [
+        Source("other/src", "cc-by-nc-4.0", True, "https://huggingface.co/datasets/other/src/blob/main/README.md")
+    ]
 
 
 def test_missing_source_is_not_found_and_unclear():
@@ -325,3 +327,46 @@ def test_invalid_source_id_not_fetched(bad):
     f = build_facts(entry(card_data={"source_datasets": [bad]}), hub)
     assert f.sources == [Source(bad, None, False)]
     assert not [c for c in hub.calls if c[0] == "dataset"]
+
+
+SHA = "ec5f1f46e9af79639a90684a7a70a956c4998f04"
+HFD = "https://huggingface.co/datasets/"
+
+
+def test_evidence_links_pinned_to_revision():
+    src = entry("other/src", tags=["license:mit"], sha="b" * 40, siblings=[{"rfilename": "README.md"}])
+    hub = FakeHub(
+        datasets={"legacy": dict(src, id="other/src")},
+        cards={"acme/data": "---\nlicense: mit\n---\nbody"},
+        raws={("acme/data", "LICENSE.txt"): "nothing here", ("acme/data", "LICENSE"): "MIT License\n..."},
+    )
+    e = entry(
+        tags=["license:mit"], card_data={"source_datasets": ["legacy", "gone/x"]}, sha=SHA,
+        siblings=[{"rfilename": "LICENSE.txt"}, {"rfilename": "LICENSE"}, {"rfilename": "README.md"}],
+    )
+    f = build_facts(e, hub)
+    assert f.revision == SHA
+    assert f.stated_evidence == f"{HFD}acme/data/blob/{SHA}/README.md"
+    assert f.file_licence == "mit"
+    assert f.file_evidence == f"{HFD}acme/data/blob/{SHA}/LICENSE"
+    # a legacy alias links to the canonical repository at the source's own revision
+    assert f.sources[0].evidence == f"{HFD}other/src/blob/{'b' * 40}/README.md"
+    # a source that is not on the Hub links to the page that was looked up
+    assert f.sources[1].evidence == f"{HFD}gone/x"
+
+
+def test_evidence_without_card_or_licence_file():
+    hub = FakeHub()
+    f = build_facts(entry(tags=["license:mit"], sha=SHA, siblings=[]), hub)
+    assert f.stated_evidence == f"https://huggingface.co/api/datasets/acme/data/revision/{SHA}"
+    assert f.file_evidence == f"{HFD}acme/data/tree/{SHA}"
+    f = build_facts(entry(sha=SHA, siblings=[]), hub)
+    assert f.stated_from == "none"
+    assert f.stated_evidence == f"{HFD}acme/data/tree/{SHA}"
+
+
+def test_unidentified_licence_file_still_linked():
+    hub = FakeHub(raws={("acme/data", "LICENSE"): "custom terms"})
+    f = build_facts(entry(tags=["license:mit"], siblings=[{"rfilename": "LICENSE"}]), hub)
+    assert f.file_licence is None
+    assert f.file_evidence == f"{HFD}acme/data/blob/main/LICENSE"

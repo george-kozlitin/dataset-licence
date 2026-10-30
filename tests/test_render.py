@@ -350,3 +350,24 @@ def test_home_featured_and_pairs(tmp_path):
     page = read(tmp_path, "d/o/conf/index.html")
     assert page.count('class="hit"') == 1
     assert '<tr class="hit"><td><a href="https://huggingface.co/datasets/o/sa">o/sa</a></td>' in page
+
+
+def test_evidence_links_on_pages_hubs_and_index(tmp_path):
+    sha = "ec5f1f46e9af79639a90684a7a70a956c4998f04"
+    card = f"https://huggingface.co/datasets/acme/permissive-set/blob/{sha}/README.md"
+    tree = f"https://huggingface.co/datasets/acme/permissive-set/tree/{sha}"
+    src = "https://huggingface.co/datasets/o/src/blob/main/README.md"
+    f = make(
+        revision=sha, stated_evidence=card, file_evidence=tree, licence_files=[], file_licence=None,
+        sources=[Source(id="o/src", licence="mit", found=True, evidence=src)],
+    )
+    render_site([f], tmp_path, BASE, "2026-10-30")
+    page = read(tmp_path, "d/acme/permissive-set/index.html")
+    assert f'<a class="ev" href="{card}">Evidence: README.md at ec5f1f4</a>' in page
+    assert f'<a class="ev" href="{tree}">Evidence: file list at ec5f1f4</a>' in page
+    assert f'<a class="ev" href="{src}">Evidence: README.md</a>' in page
+    assert f'<a href="{card}">' in page  # the diagram's declared-licence box
+    hub = read(tmp_path, "licence/apache-2-0/index.html")
+    assert f'<a class="lic" href="{card}"' in hub
+    index = json.loads(read(tmp_path, "data/index.json"))
+    assert index[0][5] == card

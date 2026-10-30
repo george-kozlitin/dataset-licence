@@ -1,3 +1,4 @@
+from dlf import lineage
 from dlf.facts import DatasetFacts, Source
 from dlf.lineage import conflict_pair, conflict_source, nodes, svg
 
@@ -56,3 +57,19 @@ def test_svg_escapes_ids():
     out = str(svg(f))
     assert "<script>" not in out and "<b>" not in out
     assert "&lt;script&gt;" in out
+
+
+def test_nodes_link_to_evidence_and_pair_evidence():
+    ev = "https://huggingface.co/datasets/o/d/blob/abc/README.md"
+    src_ev = "https://huggingface.co/datasets/b/blob/def/README.md"
+    f = make(
+        stated_evidence=ev,
+        file_evidence="https://huggingface.co/datasets/o/d/tree/abc",
+        sources=[Source("b", "cc-by-sa-4.0", True, src_ev)],
+        signal="conflict",
+    )
+    out = str(svg(f))
+    assert f'<a href="{ev}">' in out and f'<a href="{src_ev}">' in out
+    assert 'href="https://huggingface.co/datasets/o/d/tree/abc"' in out
+    assert lineage.conflict_evidence(f) == (ev, src_ev)
+    assert lineage.conflict_evidence(make()) == (None, None)

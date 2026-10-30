@@ -15,18 +15,18 @@
 <div>
 <p class="reason">{{ f.reason }}</p>
 <ul class="facts">
-<li><span>Declared licence</span><span>{% if f.stated_licence %}<a class="mono" href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a>, from the {{ f.stated_from }}{% else %}Not declared in the tag or the card (<a href="/licence/none/">see datasets with no declared licence</a>){% endif %}</span></li>
+<li><span>Declared licence</span><span>{% if f.stated_licence %}<a class="mono" href="/licence/{{ licence_slug }}/">{{ f.stated_licence }}</a>, from the {{ f.stated_from }}{% else %}Not declared in the tag or the card (<a href="/licence/none/">see datasets with no declared licence</a>){% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</span></li>
 {% if f.licence_name or f.licence_link %}
-<li><span>Licence name on the card</span><span>{{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}</span></li>
+<li><span>Licence name on the card</span><span>{{ f.licence_name or "-" }}{% if f.licence_link %}, link: {{ f.licence_link }}{% endif %}{% if f.stated_evidence %}<a class="ev" href="{{ f.stated_evidence }}">Evidence: {{ f.stated_evidence | ev }}</a>{% endif %}</span></li>
 {% endif %}
-<li><span>Licence files</span><span>{% if f.licence_files %}<span class="mono">{{ f.licence_files | join(", ") }}</span>{% if f.file_licence %}, detected as <span class="mono">{{ f.file_licence }}</span>{% else %}, licence not identified{% endif %}{% else %}No licence file at the top level of the repository{% endif %}</span></li>
+<li><span>Licence files</span><span>{% if f.licence_files %}<span class="mono">{{ f.licence_files | join(", ") }}</span>{% if f.file_licence %}, detected as <span class="mono">{{ f.file_licence }}</span>{% else %}, licence not identified{% endif %}{% else %}No licence file at the top level of the repository{% endif %}{% if f.file_evidence %}<a class="ev" href="{{ f.file_evidence }}">Evidence: {{ f.file_evidence | ev }}</a>{% endif %}</span></li>
 <li><span>Declared sources</span><span>{% if sources %}{{ sources | length }}{% else %}None listed in the card metadata{% endif %}</span></li>
 <li><span>Access gated on Hugging Face</span><span>{% if f.gated is string and f.gated == "manual" %}Yes, manual approval required{% elif f.gated %}Yes{% else %}No{% endif %}</span></li>
 </ul>
 </div>
 <figure class="graph draw" style="margin:0">
 {{ lineage }}
-{% if f.signal == "conflict" %}<figcaption><span>Red marks the licence the signal is based on.</span></figcaption>{% endif %}
+<figcaption><span>{% if f.signal == "conflict" %}Red marks the licence the signal is based on. {% endif %}Each box links to the file it was read from.</span></figcaption>
 </figure>
 </section>
 
@@ -37,7 +37,7 @@
 <thead><tr><th>Source</th><th>Reported licence</th><th>Category</th></tr></thead>
 <tbody>
 {% for s in sources %}
-<tr{% if s.hit %} class="hit"{% endif %}><td>{% if s.href and s.found %}<a href="{{ s.href }}">{{ s.id }}</a>{% elif s.hf and s.found %}<a href="{{ hf(s.id) }}">{{ s.id }}</a>{% else %}{{ s.id }}{% endif %}</td><td>{% if s.found %}{{ s.licence or "no licence stated" }}{% else %}not found{% endif %}</td><td><span class="tag"><i class="sw {{ s.tone }}"></i>{{ s.category }}</span></td></tr>
+<tr{% if s.hit %} class="hit"{% endif %}><td>{% if s.href and s.found %}<a href="{{ s.href }}">{{ s.id }}</a>{% elif s.hf and s.found %}<a href="{{ hf(s.id) }}">{{ s.id }}</a>{% else %}{{ s.id }}{% endif %}</td><td>{% if s.found %}{{ s.licence or "no licence stated" }}{% else %}not found{% endif %}{% if s.evidence %}<a class="ev" href="{{ s.evidence }}">Evidence: {{ s.evidence | ev }}</a>{% endif %}</td><td><span class="tag"><i class="sw {{ s.tone }}"></i>{{ s.category }}</span></td></tr>
 {% endfor %}
 </tbody>
 </table>

@@ -23,6 +23,7 @@ class Node:
     title: str
     sub: str
     tone: str  # "ok", "warn", "bad" or "" (neutral)
+    href: str | None = None  # evidence link
 
 
 def category(licence: str | None) -> str:
@@ -62,6 +63,17 @@ def conflict_pair(f: DatasetFacts) -> tuple[str, str] | None:
     return None
 
 
+def conflict_evidence(f: DatasetFacts) -> tuple[str | None, str | None]:
+    """Evidence links for the two sides of conflict_pair()."""
+    if f.signal != "conflict":
+        return None, None
+    if _file_conflict(f):
+        return f.stated_evidence, f.file_evidence
+    sid = conflict_source(f)
+    other = next((s.evidence for s in f.sources if s.id == sid), None)
+    return f.stated_evidence, other
+
+
 def _declared_category(f: DatasetFacts) -> str:
     cat = category(f.stated_licence)
     # A custom licence read from the card as non-commercial is classed as restrictive.
@@ -85,15 +97,17 @@ def nodes(f: DatasetFacts) -> tuple[Node, Node, list[Node]]:
         "custom licence" if "custom licence" in f.reason else (normalise(f.stated_licence) or "not declared"),
         "declared licence",
         _tone(dcat),
+        f.stated_evidence,
     )
     if f.licence_files:
         file_node = Node(
             normalise(f.file_licence) or "licence not identified",
             "licence file",
             "bad" if _file_conflict(f) else _tone(category(f.file_licence)),
+            f.file_evidence,
         )
     else:
-        file_node = Node("no licence file", "found at top level", "")
+        file_node = Node("no licence file", "found at top level", "", f.file_evidence)
     hit = conflict_source(f)
     ordered = sorted(f.sources, key=lambda s: s.id != hit)
     shown = ordered if len(ordered) <= MAX_SOURCES else ordered[: MAX_SOURCES - 1]
@@ -102,6 +116,7 @@ def nodes(f: DatasetFacts) -> tuple[Node, Node, list[Node]]:
             s.id,
             (normalise(s.licence) or "no licence in metadata") if s.found else "not found on the Hub",
             "bad" if s.id == hit else _tone(category(s.licence)),
+            s.evidence,
         )
         for s in shown
     ]
@@ -126,6 +141,8 @@ def _box(x: float, y: float, w: float, node: Node, n: int, core: bool = False) -
         parts.append(f'<text x="{x + 14}" y="{y + 21}">{escape(_short(node.title, n))}</text>')
         parts.append(f'<text class="sub" x="{x + 14}" y="{y + 38}">{escape(_short(node.sub, n + 4))}</text>')
     parts.append("</g>")
+    if node.href and not core:
+        return f'<a href="{escape(node.href)}">' + "".join(parts) + "</a>"
     return "".join(parts)
 
 

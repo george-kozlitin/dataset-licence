@@ -13,7 +13,7 @@ from xml.sax.saxutils import escape as xml_escape
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
-from dlf import lineage
+from dlf import evidence, lineage
 from dlf.facts import DatasetFacts
 
 DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
@@ -67,6 +67,7 @@ def _env() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["label"] = _label
+    env.filters["ev"] = evidence.label
     env.globals["disclaimer"] = Markup(DISCLAIMER)  # constant, not third-party text
     env.globals["tones"] = SIGNAL_TONES
     env.globals["hf"] = lambda i: HF + "/".join(quote(p, safe="") for p in i.split("/"))
@@ -128,6 +129,7 @@ def render_site(
                     "id": s.id,
                     "licence": s.licence,
                     "found": s.found,
+                    "evidence": s.evidence,
                     "href": rendered.get(s.id),
                     "hf": bool(_SIMPLE_ID.match(s.id)),
                     "hit": s.id == hit,
@@ -149,7 +151,7 @@ def render_site(
         )
         _write(out, "data/" + p + ".json", json.dumps(asdict(f), ensure_ascii=True, indent=1))
 
-    index = [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads] for f, _ in items]
+    index = [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence] for f, _ in items]
     _write(out, "data/index.json", json.dumps(index, ensure_ascii=True, separators=(",", ":")))
 
     # Hubs.
@@ -192,7 +194,10 @@ def render_site(
 
     # Home and about.
     totals = {s: len(groups["signal"][s]) for s in SIGNALS}
-    conflicts = [dict(e, pair=lineage.conflict_pair(e["f"])) for e in groups["signal"]["conflict"][:20]]
+    conflicts = [
+        dict(e, pair=lineage.conflict_pair(e["f"]), pair_ev=lineage.conflict_evidence(e["f"]))
+        for e in groups["signal"]["conflict"][:20]
+    ]
     featured = None
     # Prefer a conflict with a source, under a recognised declared licence: it reads best as a diagram.
     for e in sorted(conflicts, key=lambda e: lineage.conflict_source(e["f"]) is None):
