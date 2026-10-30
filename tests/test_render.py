@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from dlf.facts import DatasetFacts, Source
-from dlf.render import DISCLAIMER, RenderStats, render_site
+from dlf.render import DISCLAIMER, RenderStats, render_site, thin
+from dlf.shards import facts_shard, page_shard
 
 BASE = "https://example.test"
 EVIL = 'x<script>alert("1")</script>\' & more'
@@ -83,6 +84,11 @@ def read(root: Path, rel: str) -> str:
     return (root / rel).read_text(encoding="utf-8")
 
 
+def facts_json(root: Path, id: str) -> dict:
+    """What _worker.js serves at /data/d/<id>.json."""
+    return json.loads(read(root, f"data/f/{facts_shard(id)}.json"))[id.lower()]
+
+
 def test_stats(site):
     _, stats = site
     assert isinstance(stats, RenderStats)
@@ -99,8 +105,9 @@ def test_exact_files_exist(site):
         "d/acme/permissive-set/index.html",
         "d/plain/index.html",
         "data/index.json",
-        "data/d/acme/permissive-set.json",
-        "data/d/plain.json",
+        "data/ids.json",
+        "_worker.js",
+        "_routes.json",
         "licence/apache-2-0/index.html",
         "licence/none/index.html",
         "signal/conflict/index.html",
@@ -196,7 +203,7 @@ def test_escaping(site):
     assert "&lt;script&gt;" in page
     assert "&#34;" in page or "&quot;" in page
     # JSON keeps the raw text but is valid JSON
-    j = json.loads(read(root, "data/d/evil/set.json"))
+    j = facts_json(root, "evil/set")
     assert j["citation"] == EVIL
     # script tags appear only on the home page (live check, search) and the 404 page (live check)
     expected = {root / "index.html": 2, root / "404.html": 1}
@@ -254,9 +261,9 @@ def test_json_roundtrip(site, facts):
     ] or sorted(idx) == sorted(
         [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence] for f in facts]
     )
-    full = json.loads(read(root, "data/d/acme/permissive-set.json"))
+    full = facts_json(root, "acme/permissive-set")
     assert full["id"] == "acme/permissive-set" and full["sources"] == []
-    full = json.loads(read(root, "data/d/evil/set.json"))
+    full = facts_json(root, "evil/set")
     assert full["sources"][1] == {"id": "gone/missing", "licence": None, "found": False, "evidence": None}
 
 
@@ -407,3 +414,46 @@ def test_home_offers_live_check(site):
     assert home.index('src="/live.js"') < home.index('src="/search.js"')
     js = read(root, "live.js")
     assert "https://mcp.datalicense.uk/v1/check?id=" in js and "—" not in js
+
+
+def test_pages_beyond_the_static_limit_go_to_shards(tmp_path):
+    fx = [make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=100 - i) for i in range(5)]
+    stats = render_site(fx, tmp_path, BASE, "2026-10-30", static_pages=2)
+    assert stats.static_pages == 2 and stats.pages == 5
+    assert (tmp_path / "d/o/d0/index.html").is_file() and (tmp_path / "d/o/d1/index.html").is_file()
+    assert not (tmp_path / "d/o/d2").exists()
+    shard = json.loads(read(tmp_path, f"p/{page_shard('o/d3')}.json"))
+    canonical, html = shard["o/d3"]
+    assert canonical == "o/d3" and "<h1>o/d3</h1>" in html and DISCLAIMER in html
+    # every page is in the sitemap and in ids.json; facts of every dataset are in the shards
+    sitemap = read(tmp_path, "sitemap-1.xml")
+    assert f"{BASE}/d/o/d4/" in sitemap
+    assert json.loads(read(tmp_path, "data/ids.json")) == [f"o/d{i}" for i in range(5)]
+    assert facts_json(tmp_path, "O/D4")["id"] == "o/d4"
+
+
+def test_index_json_is_capped(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    monkeypatch.setattr(r, "INDEX_LIMIT", 2)
+    fx = [make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=100 - i) for i in range(4)]
+    render_site(fx, tmp_path, BASE, "2026-10-30")
+    assert [row[0] for row in json.loads(read(tmp_path, "data/index.json"))] == ["o/d0", "o/d1"]
+
+
+def test_thin_pages_are_noindex_and_out_of_the_sitemap(tmp_path):
+    empty = make(id="o/empty", owner="o", name="empty", stated_licence=None, stated_from="none",
+                 licence_files=[], file_licence=None, sources=[], signal="unclear")  # fmt: skip
+    assert thin(empty) and not thin(make())
+    assert not thin(make(stated_licence=None, stated_from="none", licence_files=["LICENSE"]))
+    stats = render_site([make(), empty], tmp_path, BASE, "2026-10-30")
+    assert stats.noindex == 1
+    assert '<meta name="robots" content="noindex">' in read(tmp_path, "d/o/empty/index.html")
+    assert "noindex" not in read(tmp_path, "d/acme/permissive-set/index.html")
+    sitemap = read(tmp_path, "sitemap-1.xml")
+    assert "/d/o/empty/" not in sitemap and "/d/acme/permissive-set/" in sitemap
+
+
+def test_file_budget(tmp_path):
+    with pytest.raises(RuntimeError, match="above the budget"):
+        render_site([make()], tmp_path, BASE, "2026-10-30", file_budget=5)

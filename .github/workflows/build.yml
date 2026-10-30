@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
+    inputs:
+      limit:
+        description: "Datasets to cover (most downloaded first)"
+        default: "50000"
+      deadline_minutes:
+        description: "Stop fetching from the Hub after this many minutes"
+        default: "285"
 
 permissions:
   contents: read
@@ -11,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 350
     env:
       BASE_URL: ${{ vars.BASE_URL }}
       CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
@@ -39,12 +46,47 @@ jobs:
         working-directory: mcp
         run: npx vitest run
 
+      # Facts from the previous build: datasets whose Hub revision is unchanged are not fetched
+      # again. The Actions cache is the first choice (it survives a failed deploy); the live
+      # site's shards are the fallback when the cache has expired.
+      - name: Restore facts cache
+        uses: actions/cache/restore@v4
+        with:
+          path: facts-cache
+          key: facts-${{ github.run_id }}
+          restore-keys: facts-
+      - name: Fall back to the published facts
+        run: |
+          mkdir -p facts-cache
+          if [ -z "$(ls -A facts-cache)" ] && [ -n "$BASE_URL" ]; then
+            for i in $(seq 0 255); do
+              n=$(printf '%02x' "$i")
+              curl -sf -A "datalicense-build" "$BASE_URL/data/f/$n.json" -o "facts-cache/$n.json" || rm -f "facts-cache/$n.json"
+            done
+          fi
+          echo "cache shards: $(ls facts-cache | wc -l)"
+
       - name: Build site
+        env:
+          LIMIT: ${{ inputs.limit || '50000' }}
+          DEADLINE: ${{ inputs.deadline_minutes || '285' }}
         run: |
           if [ -z "$BASE_URL" ]; then echo "repository variable BASE_URL is not set" >&2; exit 1; fi
-          args=(--limit 5000 --out site --base-url "$BASE_URL")
+          args=(--limit "$LIMIT" --out site --base-url "$BASE_URL" --cache facts-cache --deadline-minutes "$DEADLINE")
           if [ -n "$CONTACT_EMAIL" ]; then args+=(--contact "$CONTACT_EMAIL"); fi
           python -m dlf build "${args[@]}"
+
+      - name: Save facts cache
+        if: always()
+        run: |
+          if [ -d site/data/f ] && [ -n "$(ls -A site/data/f)" ]; then
+            rm -rf facts-cache && cp -r site/data/f facts-cache
+          fi
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: facts-cache
+          key: facts-${{ github.run_id }}
 
       - name: Deploy site to Cloudflare Pages
         working-directory: mcp

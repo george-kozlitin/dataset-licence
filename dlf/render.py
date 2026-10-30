@@ -15,10 +15,14 @@ from markupsafe import Markup
 
 from dlf import evidence, lineage
 from dlf.facts import DatasetFacts
+from dlf.shards import facts_shard, page_shard
 
 DISCLAIMER = "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
 HUB_PAGE_SIZE = 200
 SITEMAP_LIMIT = 5000
+STATIC_PAGES = 10000  # dataset pages written as files; the rest go into page shards
+INDEX_LIMIT = 5000  # rows in data/index.json (find_datasets in the MCP Worker)
+FILE_BUDGET = 19500  # Cloudflare Pages allows 20,000 files per deployment on the free plan
 SIGNALS = ("permissive", "restrictive", "conflict", "unclear")
 SIGNAL_LABELS = {
     "permissive": "Permissive or share-alike",
@@ -32,7 +36,7 @@ HF = "https://huggingface.co/datasets/"
 HERE = Path(__file__).parent
 _SIMPLE_ID = re.compile(r"^[\w.-]+(/[\w.-]+)?$")
 _SEGMENT = re.compile(r"^[A-Za-z0-9_.-]+$")
-OWNED_DIRS = ("d", "licence", "signal", "task", "data")
+OWNED_DIRS = ("d", "licence", "signal", "task", "data", "p")
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,9 @@ class RenderStats:
     hubs: int
     sitemap_files: int
     skipped_ids: int = 0
+    static_pages: int = 0
+    noindex: int = 0
+    files: int = 0
 
 
 def slugify(text: str | None) -> str:
@@ -86,6 +93,17 @@ def _licence_slug(f: DatasetFacts) -> str:
     return slugify(f.stated_licence) or "unrecognised"
 
 
+def thin(f: DatasetFacts) -> bool:
+    """Nothing about the licence was found: such pages are kept out of search engines."""
+    return (
+        f.stated_from == "none"
+        and not f.licence_name
+        and not f.licence_files
+        and not f.sources
+        and not f.card_nc
+    )
+
+
 def render_site(
     facts: list[DatasetFacts],
     out: Path,
@@ -93,6 +111,8 @@ def render_site(
     built_at: str,
     contact: str = "",
     sitemap_limit: int = SITEMAP_LIMIT,
+    static_pages: int = STATIC_PAGES,
+    file_budget: int = FILE_BUDGET,
 ) -> RenderStats:
     out = Path(out)
     for d in OWNED_DIRS:
@@ -102,11 +122,19 @@ def render_site(
     ctx = {"built_at": built_at}
     sitemap_urls: list[tuple[str, str | None]] = []
 
-    def page(rel_dir: str, template: str, lastmod: str | None = None, **kw) -> None:
+    def page(
+        rel_dir: str, template: str, lastmod: str | None = None, keep: dict | None = None,
+        index: bool = True, **kw,
+    ) -> None:
+        """Render a page to its file, or into keep (a page shard) when given."""
         path = "/" + rel_dir.strip("/") + "/" if rel_dir.strip("/") else "/"
         html = env.get_template(template).render(canonical=base + path, **ctx, **kw)
-        _write(out, (rel_dir.strip("/") + "/" if rel_dir.strip("/") else "") + "index.html", html)
-        sitemap_urls.append((base + path, lastmod))
+        if keep is not None:
+            keep["html"] = html
+        else:
+            _write(out, (rel_dir.strip("/") + "/" if rel_dir.strip("/") else "") + "index.html", html)
+        if index:
+            sitemap_urls.append((base + path, lastmod))
 
     # Usable datasets and their URL paths.
     items: list[tuple[DatasetFacts, str]] = []
@@ -119,7 +147,10 @@ def render_site(
             skipped += 1
     rendered = {f.id: "/" + p + "/" for f, p in items}
 
-    for f, p in items:
+    page_shards: dict[str, dict[str, list[str]]] = {}
+    facts_shards: dict[str, dict[str, dict]] = {}
+    noindex = 0
+    for i, (f, p) in enumerate(items):
         hit = lineage.conflict_source(f)
         sources = []
         for s in f.sources:
@@ -137,10 +168,16 @@ def render_site(
                     "tone": CATEGORY_TONES[cat],
                 }
             )
+        keep: dict | None = None if i < static_pages else {}
+        hidden = thin(f)
+        noindex += hidden
         page(
             p,
             "dataset.html.j2",
             lastmod=_date(f.last_modified),
+            keep=keep,
+            index=not hidden,
+            noindex=hidden,
             f=f,
             sources=sources,
             lineage=lineage.svg(f),
@@ -149,10 +186,22 @@ def render_site(
             licence_slug=_licence_slug(f),
             task_links=[(t, slugify(t)) for t in f.tasks if slugify(t)],
         )
-        _write(out, "data/" + p + ".json", json.dumps(asdict(f), ensure_ascii=True, indent=1))
+        if keep is not None:
+            page_shards.setdefault(page_shard(f.id), {})[f.id.lower()] = [f.id, keep["html"]]
+        facts_shards.setdefault(facts_shard(f.id), {})[f.id.lower()] = asdict(f)
 
-    index = [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence] for f, _ in items]
-    _write(out, "data/index.json", json.dumps(index, ensure_ascii=True, separators=(",", ":")))
+    compact = {"ensure_ascii": True, "separators": (",", ":")}
+    for key, shard in page_shards.items():
+        _write(out, f"p/{key}.json", json.dumps(shard, **compact))
+    # Facts of every dataset: served as /data/d/<id>.json by _worker.js, and the next build's cache.
+    for key, shard in facts_shards.items():
+        _write(out, f"data/f/{key}.json", json.dumps(shard, **compact))
+    index = [
+        [f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence]
+        for f, _ in items[:INDEX_LIMIT]
+    ]
+    _write(out, "data/index.json", json.dumps(index, **compact))
+    _write(out, "data/ids.json", json.dumps([f.id for f, _ in items], **compact))
 
     # Hubs.
     names: dict[tuple[str, str], str] = {}
@@ -233,7 +282,7 @@ def render_site(
     )
 
     # Static files.
-    for name in ("style.css", "search.js", "live.js"):
+    for name in ("style.css", "search.js", "live.js", "_worker.js", "_routes.json"):
         shutil.copyfile(HERE / "static" / name, out / name)
     shutil.copytree(HERE / "static" / "fonts", out / "fonts", dirs_exist_ok=True)
     _write(out, "robots.txt", f"User-agent: *\nAllow: /\n\nSitemap: {base}/sitemap.xml\n")
@@ -265,8 +314,12 @@ def render_site(
         + body
         + "</sitemapindex>\n",
     )
+    files = sum(1 for x in out.rglob("*") if x.is_file())
+    if files > file_budget:
+        raise RuntimeError(f"{files} files in {out}, above the budget of {file_budget}")
     return RenderStats(
-        pages=len(items), hubs=hubs, sitemap_files=len(chunks), skipped_ids=skipped
+        pages=len(items), hubs=hubs, sitemap_files=len(chunks), skipped_ids=skipped,
+        static_pages=min(len(items), static_pages), noindex=noindex, files=files,
     )
 
 

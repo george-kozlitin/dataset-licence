@@ -1,6 +1,7 @@
 {% extends "base.html.j2" %}
 {% block title %}{{ f.id }} licence{% endblock %}
 {% block description %}Licence facts for the Hugging Face dataset {{ f.id }}: {{ f.signal | label }}. Declared licence: {{ f.stated_licence or "not declared" }}.{% endblock %}
+{% block head %}{% if noindex %}<meta name="robots" content="noindex">{% endif %}{% endblock %}
 {% block body %}
 <p class="crumbs"><a href="/">All datasets</a>{% if f.owner %} / {{ f.owner }}{% endif %}</p>
 <div class="ds-head">

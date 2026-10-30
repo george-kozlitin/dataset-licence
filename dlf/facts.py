@@ -264,8 +264,12 @@ def _count(value: object) -> int:
 # -- builder ---------------------------------------------------------------
 
 
-def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
-    """Facts for one list entry. Card problems never raise; a HubError propagates."""
+def build_facts(entry: dict, hub: Hub, known: dict[str, dict] | None = None) -> DatasetFacts:
+    """Facts for one list entry. Card problems never raise; a HubError propagates.
+
+    known maps lower-case IDs to entries of the same listing; a source found there is not
+    fetched again.
+    """
     id_ = entry["id"]
     owner, _, name = id_.rpartition("/")
     card = hub.card(id_)
@@ -301,28 +305,10 @@ def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
     else:
         stated_ev = evidence.tree_url(id_, rev)
 
-    sources: list[Source] = []
-    for sid in _source_ids(card_data, id_):
-        found = hub.dataset(sid) if _valid_source_id(sid) else None
-        if found is None:
-            sources.append(Source(sid, None, False, evidence.page_url(sid) if _valid_source_id(sid) else None))
-            continue
-        cd = found.get("cardData")
-        lic, _ = _entry_licence(found, cd if isinstance(cd, dict) else {})
-        sources.append(Source(sid, lic, True, source_evidence(found, sid)))
+    sources = [_lookup_source(sid, hub, known or {}) for sid in _source_ids(card_data, id_)]
 
     custom_nc = _custom_nc(stated, licence_name, body)
-    signal, reason = classify(
-        NC_STAND_IN if custom_nc else stated, [s.licence for s in sources], file_licence
-    )
-    if custom_nc:
-        if signal == "restrictive":
-            reason = NC_REASON
-        else:
-            reason = reason.replace(
-                f"The declared licence ({NC_STAND_IN})",
-                "The custom licence described in the dataset card",
-            )
+    signal, reason = _signal(stated, custom_nc, sources, file_licence)
 
     gated = entry.get("gated", False)
     if not isinstance(gated, (bool, str)):
@@ -351,6 +337,79 @@ def build_facts(entry: dict, hub: Hub) -> DatasetFacts:
         stated_evidence=stated_ev,
         file_evidence=file_ev,
         card_nc=custom_nc,
+    )
+
+
+def _lookup_source(sid: str, hub: Hub | None, known: dict[str, dict]) -> Source:
+    record = known.get(sid.lower())
+    if record is None and hub is not None and _valid_source_id(sid):
+        record = hub.dataset(sid)
+    if record is None:
+        return Source(sid, None, False, evidence.page_url(sid) if _valid_source_id(sid) else None)
+    cd = record.get("cardData")
+    lic, _ = _entry_licence(record, cd if isinstance(cd, dict) else {})
+    return Source(sid, lic, True, source_evidence(record, sid))
+
+
+def _signal(
+    stated: str | None, card_nc: bool, sources: list[Source], file_licence: str | None
+) -> tuple[str, str]:
+    signal, reason = classify(
+        NC_STAND_IN if card_nc else stated, [s.licence for s in sources], file_licence
+    )
+    if card_nc:
+        if signal == "restrictive":
+            reason = NC_REASON
+        else:
+            reason = reason.replace(
+                f"The declared licence ({NC_STAND_IN})",
+                "The custom licence described in the dataset card",
+            )
+    return signal, reason
+
+
+def refresh_facts(cached: dict, entry: dict, known: dict[str, dict] | None = None) -> DatasetFacts:
+    """Facts from a previous run's JSON, with the listing's counts and fresh source licences.
+
+    Card-derived values are reused, so this is only right while the dataset's revision is
+    unchanged (or as a stale fallback). Sources in the listing get their current licence;
+    other sources keep the licence recorded last time.
+    """
+    known = known or {}
+    sources = []
+    for s in cached.get("sources") or []:
+        sid = s["id"]
+        if sid.lower() in known:
+            sources.append(_lookup_source(sid, None, known))
+        else:
+            sources.append(Source(sid, s.get("licence"), bool(s.get("found")), s.get("evidence")))
+    stated = cached.get("stated_licence")
+    card_nc = bool(cached.get("card_nc"))
+    signal, reason = _signal(stated, card_nc, sources, cached.get("file_licence"))
+    gated = entry.get("gated", cached.get("gated", False))
+    if not isinstance(gated, (bool, str)):
+        gated = False
+    keep = {k: cached.get(k) for k in (
+        "stated_licence", "stated_from", "licence_name", "licence_link", "file_licence",
+        "citation", "revision", "stated_evidence", "file_evidence",
+    )}
+    owner, _, name = cached["id"].rpartition("/")
+    return DatasetFacts(
+        id=cached["id"],
+        owner=owner or None,
+        name=name,
+        downloads=_count(entry.get("downloads")),
+        likes=_count(entry.get("likes")),
+        last_modified=str(entry.get("lastModified") or cached.get("last_modified") or ""),
+        stated_from=keep.pop("stated_from") or "none",
+        licence_files=list(cached.get("licence_files") or []),
+        sources=sources,
+        gated=gated,
+        tasks=list(cached.get("tasks") or []),
+        signal=signal,
+        reason=reason,
+        card_nc=card_nc,
+        **keep,
     )
 
 

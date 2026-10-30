@@ -10,11 +10,12 @@
     if (!s || !data) return;
     var n = 0, exact = false;
     for (var i = 0; i < data.length; i++) {
-      if (data[i][0].toLowerCase() === s) exact = true;
-      if (n >= 20 || data[i][0].toLowerCase().indexOf(s) < 0) continue;
+      var id = data[i], low = id.toLowerCase();
+      if (low === s) exact = true;
+      if (n >= 20 || low.indexOf(s) < 0) continue;
       var li = document.createElement("li"), a = document.createElement("a");
-      a.href = url(data[i][0]);
-      a.textContent = data[i][0];
+      a.href = url(id);
+      a.textContent = id;
       li.appendChild(a);
       out.appendChild(li);
       n++;
@@ -36,7 +37,7 @@
     if (data) return show();
     if (loading) return;
     loading = true;
-    fetch("/data/index.json").then(function (r) {
+    fetch("/data/ids.json").then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.json();
     }).then(function (d) {

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dlf import facts
+from dlf import facts, shards
 from dlf.licences import _category, classify, normalise
 
 FIXTURE = Path(__file__).parent / "fixtures" / "parity.json"
@@ -93,6 +93,10 @@ def cases() -> dict:
         "source_ids": [[list(args), facts._source_ids(*args)] for args in SOURCE_IDS],
         "entry_licence": [[list(args), list(facts._entry_licence(*args))] for args in ENTRY_LICENCE],
         "valid_id": [[v, facts._valid_source_id(v)] for v in VALID_IDS],
+        "shards": [
+            [v, shards.fnv1a(v), shards.facts_shard(v), shards.page_shard(v)]
+            for v in ["google/xtreme", "Google/XTREME", "squad", "a", "", "allenai/tulu-3-sft-mixture"]
+        ],
         "cards": [
             {
                 "name": name,
