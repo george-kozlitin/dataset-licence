@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "uk.datalicense/dataset-licence",
+  "title": "Dataset licence facts",
+  "description": "Licence facts for popular Hugging Face datasets: declared licence, files, sources, conflicts.",
+  "version": "1.0.0",
+  "websiteUrl": "https://datalicense.uk/about/",
+  "repository": {
+    "url": "https://github.com/george-kozlitin/dataset-licence",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.datalicense.uk/mcp"
+    }
+  ]
+}
