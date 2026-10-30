@@ -57,7 +57,7 @@ const TOOLS = [
   {
     name: "find_datasets",
     description:
-      "List the 5,000 most downloaded Hugging Face datasets in the weekly index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence links to the Hub file, API record or file list checked for a declared licence. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Search the 5,000 most downloaded Hugging Face datasets within the weekly index of 50,000 datasets, returning matches in descending order of download count. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence links to the Hub file, API record or file list checked for a declared licence. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
