@@ -93,7 +93,7 @@ def test_missing_source_is_not_found_and_unclear():
     f = build_facts(
         entry(tags=["license:mit"], card_data={"source_datasets": "ghost/gone"}), FakeHub()
     )
-    assert f.sources == [Source("ghost/gone", None, False)]
+    assert f.sources == [Source("ghost/gone", None, False, "https://huggingface.co/datasets/ghost/gone")]
     assert f.signal == "unclear"
 
 
@@ -337,11 +337,11 @@ def test_evidence_links_pinned_to_revision():
     src = entry("other/src", tags=["license:mit"], sha="b" * 40, siblings=[{"rfilename": "README.md"}])
     hub = FakeHub(
         datasets={"legacy": dict(src, id="other/src")},
-        cards={"acme/data": "---\nlicense: mit\n---\nbody"},
+        cards={"acme/data": "---\nlicense: mit\nsource_datasets: [legacy, gone/x]\n---\nbody"},
         raws={("acme/data", "LICENSE.txt"): "nothing here", ("acme/data", "LICENSE"): "MIT License\n..."},
     )
     e = entry(
-        tags=["license:mit"], card_data={"source_datasets": ["legacy", "gone/x"]}, sha=SHA,
+        tags=["license:mit"], sha=SHA,
         siblings=[{"rfilename": "LICENSE.txt"}, {"rfilename": "LICENSE"}, {"rfilename": "README.md"}],
     )
     f = build_facts(e, hub)

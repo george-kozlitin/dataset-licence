@@ -126,7 +126,10 @@ def test_disclaimer_on_every_dataset_page(site):
     assert len(pages) == 3
     for p in pages:
         assert DISCLAIMER in p.read_text(encoding="utf-8")
-    assert DISCLAIMER == "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
+    assert (
+        DISCLAIMER
+        == "Licence facts reported by the dataset and its declared sources. Not legal advice, and not a grant of permission to use the dataset."
+    )
 
 
 def test_forbidden_phrases_and_em_dash(tmp_path):
@@ -158,9 +161,17 @@ def test_stale_output_removed(tmp_path, facts):
 
 
 def test_hub_titles_and_slugs(tmp_path):
-    fx = [make(stated_licence="???", id="o/a", owner="o", name="a"),
-          make(stated_licence="Apache 2.0", id="o/b", owner="o", name="b",
-               gated=True, tasks=["Question Answering"])]
+    fx = [
+        make(stated_licence="???", id="o/a", owner="o", name="a"),
+        make(
+            stated_licence="Apache 2.0",
+            id="o/b",
+            owner="o",
+            name="b",
+            gated=True,
+            tasks=["Question Answering"],
+        ),
+    ]
     render_site(fx, tmp_path, BASE, "2026-10-29")
     assert "???" in read(tmp_path, "licence/unrecognised/index.html")
     assert "Apache 2.0" in read(tmp_path, "licence/apache-2-0/index.html")
@@ -228,18 +239,19 @@ def test_canonical_and_meta(site):
         assert m.group(1).startswith(BASE + "/") and m.group(1).endswith("/"), (f, m.group(1))
         assert "<title>" in t and 'name="description"' in t
         assert 'name="viewport"' in t
-    assert (
-        '<link rel="canonical" href="https://example.test/d/acme/permissive-set/"'
-        in read(root, "d/acme/permissive-set/index.html")
+    assert '<link rel="canonical" href="https://example.test/d/acme/permissive-set/"' in read(
+        root, "d/acme/permissive-set/index.html"
     )
 
 
 def test_json_roundtrip(site, facts):
     root, _ = site
     idx = json.loads(read(root, "data/index.json"))
-    assert idx == [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads] for f in facts] or sorted(
-        idx
-    ) == sorted([[f.id, f.signal, f.stated_licence, f.tasks, f.downloads] for f in facts])
+    assert idx == [
+        [f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence] for f in facts
+    ] or sorted(idx) == sorted(
+        [[f.id, f.signal, f.stated_licence, f.tasks, f.downloads, f.stated_evidence] for f in facts]
+    )
     full = json.loads(read(root, "data/d/acme/permissive-set.json"))
     assert full["id"] == "acme/permissive-set" and full["sources"] == []
     full = json.loads(read(root, "data/d/evil/set.json"))
@@ -291,9 +303,7 @@ def test_robots(site):
 
 
 def test_hub_pagination(tmp_path):
-    many = [
-        make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=1000 - i) for i in range(450)
-    ]
+    many = [make(id=f"o/d{i}", owner="o", name=f"d{i}", downloads=1000 - i) for i in range(450)]
     render_site(many, tmp_path, BASE, "2026-10-29")
     p1 = read(tmp_path, "licence/apache-2-0/index.html")
     p3 = read(tmp_path, "licence/apache-2-0/page/3/index.html")
@@ -336,9 +346,16 @@ def test_home_featured_and_pairs(tmp_path):
     fx = [
         make(),
         make(
-            id="o/conf", owner="o", name="conf", downloads=800, file_licence=None, licence_files=[],
-            sources=[Source(id="acme/permissive-set", licence="apache-2.0", found=True),
-                     Source(id="o/sa", licence="cc-by-sa-4.0", found=True)],
+            id="o/conf",
+            owner="o",
+            name="conf",
+            downloads=800,
+            file_licence=None,
+            licence_files=[],
+            sources=[
+                Source(id="acme/permissive-set", licence="apache-2.0", found=True),
+                Source(id="o/sa", licence="cc-by-sa-4.0", found=True),
+            ],
             signal="conflict",
             reason="The declared licence (apache-2.0) may conflict with a source dataset's reported share-alike licence (cc-by-sa-4.0).",
         ),
@@ -349,7 +366,9 @@ def test_home_featured_and_pairs(tmp_path):
     assert 'apache-2.0<span class="x" aria-label="and">×</span>cc-by-sa-4.0' in home
     page = read(tmp_path, "d/o/conf/index.html")
     assert page.count('class="hit"') == 1
-    assert '<tr class="hit"><td><a href="https://huggingface.co/datasets/o/sa">o/sa</a></td>' in page
+    assert (
+        '<tr class="hit"><td><a href="https://huggingface.co/datasets/o/sa">o/sa</a></td>' in page
+    )
 
 
 def test_evidence_links_on_pages_hubs_and_index(tmp_path):
@@ -358,7 +377,11 @@ def test_evidence_links_on_pages_hubs_and_index(tmp_path):
     tree = f"https://huggingface.co/datasets/acme/permissive-set/tree/{sha}"
     src = "https://huggingface.co/datasets/o/src/blob/main/README.md"
     f = make(
-        revision=sha, stated_evidence=card, file_evidence=tree, licence_files=[], file_licence=None,
+        revision=sha,
+        stated_evidence=card,
+        file_evidence=tree,
+        licence_files=[],
+        file_licence=None,
         sources=[Source(id="o/src", licence="mit", found=True, evidence=src)],
     )
     render_site([f], tmp_path, BASE, "2026-10-30")

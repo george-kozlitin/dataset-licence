@@ -37,7 +37,7 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL: the Hub file it was read from, pinned to a commit. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "Dataset ID, for example 'owner/name'." } },
@@ -48,7 +48,7 @@ const TOOLS = [
   {
     name: "find_datasets",
     description:
-      "List popular Hugging Face datasets from the published index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence is the Hub file the declared licence was read from. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "List popular Hugging Face datasets from the published index, ordered by download count from highest to lowest. Optionally filter by signal, task tag and declared licence ID; all supplied filters must match. Returns up to 50 results; licence_evidence links to the Hub file, API record or file list checked for a declared licence. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
