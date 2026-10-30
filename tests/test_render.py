@@ -112,6 +112,7 @@ def test_exact_files_exist(site):
         "404.html",
         "style.css",
         "search.js",
+        "live.js",
         "fonts/archivo.woff2",
         "fonts/jbmono-400.woff2",
         "fonts/jbmono-500.woff2",
@@ -328,6 +329,8 @@ def test_404_page(site):
     assert '<meta name="robots" content="noindex">' in html
     assert 'href="/"' in html and 'href="/#q"' in html
     assert "canonical" not in html
+    # unknown /d/<id>/ addresses offer a live check of that ID
+    assert 'id="live-404"' in html and 'id="live"' in html and '<script src="/live.js"' in html
     for f in root.glob("sitemap*.xml"):
         assert "404" not in f.read_text(encoding="utf-8")
 
@@ -394,3 +397,12 @@ def test_evidence_links_on_pages_hubs_and_index(tmp_path):
     assert f'<a class="lic" href="{card}"' in hub
     index = json.loads(read(tmp_path, "data/index.json"))
     assert index[0][5] == card
+
+
+def test_home_offers_live_check(site):
+    root, _ = site
+    home = read(root, "index.html")
+    assert '<div id="live" aria-live="polite"></div>' in home
+    assert home.index('src="/live.js"') < home.index('src="/search.js"')
+    js = read(root, "live.js")
+    assert "https://mcp.datalicense.uk/v1/check?id=" in js and "—" not in js

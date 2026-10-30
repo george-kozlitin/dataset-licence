@@ -10,3 +10,9 @@ binding = "STATS"
 id = "2f1fa9f5479d4c5187a4f18c67bb4001"
 
 # Secrets (set with `wrangler secret put`): MCP_SALT, MCP_STATS_SECRET
+
+# Live checks (/v1/check and dataset_licence outside the index): per-IP limit.
+[[ratelimits]]
+name = "CHECK_LIMIT"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }

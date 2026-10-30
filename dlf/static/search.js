@@ -8,9 +8,10 @@
     var s = q.value.trim().toLowerCase();
     out.textContent = "";
     if (!s || !data) return;
-    var n = 0;
-    for (var i = 0; i < data.length && n < 20; i++) {
-      if (data[i][0].toLowerCase().indexOf(s) < 0) continue;
+    var n = 0, exact = false;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i][0].toLowerCase() === s) exact = true;
+      if (n >= 20 || data[i][0].toLowerCase().indexOf(s) < 0) continue;
       var li = document.createElement("li"), a = document.createElement("a");
       a.href = url(data[i][0]);
       a.textContent = data[i][0];
@@ -22,6 +23,13 @@
       var e = document.createElement("li");
       e.textContent = "No matching dataset IDs in this site's index.";
       out.appendChild(e);
+    }
+    var box = document.getElementById("live"), b = !exact && box && window.dlLiveButton && window.dlLiveButton(q.value.trim(), box);
+    if (b) {
+      var li2 = document.createElement("li");
+      li2.className = "live-row";
+      li2.appendChild(b);
+      out.appendChild(li2);
     }
   }
   q.addEventListener("input", function () {

@@ -8,6 +8,7 @@
 <p class="lede">For the {{ "{:,}".format(total) }} most downloaded datasets: the declared licence, licence files at the top level of the repository, sources listed in the card metadata, and possible licence conflicts.</p>
 <label class="search" for="q"><span aria-hidden="true">&gt;</span><input id="q" type="search" placeholder="Dataset ID, e.g. squad" aria-label="Find a dataset by ID" autocomplete="off"></label>
 <ul id="results"></ul>
+<div id="live" aria-live="polite"></div>
 <noscript><p class="hint">Search needs JavaScript. Browse the lists below instead.</p></noscript>
 {% if examples %}<p class="hint">Try {% for e in examples %}<a href="{{ e.href }}">{{ e.f.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
 </div>
@@ -43,4 +44,4 @@
 {% endif %}
 </section>
 {% endblock %}
-{% block script %}<script src="/search.js" defer></script>{% endblock %}
+{% block script %}<script src="/live.js" defer></script><script src="/search.js" defer></script>{% endblock %}

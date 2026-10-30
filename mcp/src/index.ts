@@ -1,8 +1,11 @@
 // Dataset Licence MCP Worker: stateless MCP over streamable HTTP (JSON responses).
 // Implements initialize, tools/list and tools/call as plain JSON-RPC 2.0 on POST /mcp.
 
+import { checkDataset, HubUnavailable, MAX_SOURCES } from "./check";
+
 export interface Env {
   SITE_URL: string;
+  CHECK_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   STATS: KVNamespace;
   MCP_SALT: string;
   MCP_STATS_SECRET: string;
@@ -16,6 +19,9 @@ const SIGNAL_HELP =
 const INDEX_TTL_MS = 10 * 60 * 1000;
 const COUNT_TTL_S = 70 * 86400;
 const MAX_LIMIT = 50;
+const LIVE_TTL_S = 6 * 3600;
+const LIVE_NOTE =
+  `Checked live on the Hugging Face Hub because the dataset is not in the weekly index, or a fresh check was asked for. At most ${MAX_SOURCES} declared sources are looked up; sources_omitted counts the rest.`;
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const CORS: Record<string, string> = {
@@ -37,10 +43,13 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Retrieve published licence facts for one Hugging Face dataset in this site's index: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Retrieve licence facts for one Hugging Face dataset: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. Datasets in the weekly index of popular datasets are answered from it; any other public dataset is checked live on the Hub. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
-      properties: { id: { type: "string", description: "Dataset ID, for example 'owner/name'." } },
+      properties: {
+        id: { type: "string", description: "Dataset ID, for example 'owner/name'." },
+        live: { type: "boolean", description: "Check the Hub now instead of using the weekly index. Datasets outside the index are always checked live." },
+      },
       required: ["id"],
       additionalProperties: false,
     },
@@ -80,16 +89,67 @@ const toolText = (text: string, isError = false) => ({
   ...(isError ? { isError: true } : {}),
 });
 
-async function datasetLicence(env: Env, args: any) {
+/** Live facts for one dataset, from the Cache API when a check ran in the last few hours. */
+export async function liveFacts(id: string, ctx?: ExecutionContext): Promise<{ facts: Record<string, unknown>; checked_at: string } | null> {
+  const cache = typeof caches !== "undefined" ? (caches as any).default as Cache : null;
+  const key = new Request(`https://live-check.internal/${encodeURIComponent(id.toLowerCase())}`);
+  const hit = cache ? await cache.match(key) : undefined;
+  if (hit) return hit.json();
+  const facts = await checkDataset(id);
+  if (facts === null) return null;
+  const out = { facts, checked_at: new Date().toISOString() };
+  if (cache) {
+    const put = cache.put(key, new Response(JSON.stringify(out), { headers: { "cache-control": `max-age=${LIVE_TTL_S}` } }));
+    if (ctx?.waitUntil) ctx.waitUntil(put); else await put;
+  }
+  return out;
+}
+
+async function allowed(env: Env, req: Request): Promise<boolean> {
+  if (!env.CHECK_LIMIT) return true;
+  try {
+    return (await env.CHECK_LIMIT.limit({ key: req.headers.get("CF-Connecting-IP") ?? "unknown" })).success;
+  } catch {
+    return true;
+  }
+}
+
+async function liveAnswer(env: Env, id: string, req: Request, ctx?: ExecutionContext) {
+  if (!(await allowed(env, req))) return toolText("Too many live checks from this address. Try again in a minute.", true);
+  let got;
+  try { got = await liveFacts(id, ctx); } catch (e) {
+    return toolText(e instanceof HubUnavailable ? "The Hugging Face Hub is not answering right now. Try again later." : "The live check failed. Try again later.", true);
+  }
+  if (got === null) return toolText(`Dataset '${id}' was not found on the Hugging Face Hub, or it is private.`, true);
+  return toolText(JSON.stringify({ facts: got.facts, source: "live check", checked_at: got.checked_at, note: LIVE_NOTE, disclaimer: DISCLAIMER }, null, 2));
+}
+
+async function datasetLicence(env: Env, args: any, req: Request, ctx?: ExecutionContext) {
   const id = args?.id;
   if (!validId(id)) return toolText("Invalid dataset ID. Expected 'owner/name' or 'name'.", true);
+  if (args?.live !== undefined && typeof args.live !== "boolean") return toolText("live must be true or false.", true);
+  if (args?.live) return liveAnswer(env, id, req, ctx);
   let res: Response;
   try { res = await fetch(`${base(env)}/data/d/${id}.json`); } catch { return toolText("Facts are temporarily unavailable.", true); }
-  if (res.status === 404) return toolText(`No facts for dataset '${id}'. It is not in the published set.`, true);
+  if (res.status === 404) return liveAnswer(env, id, req, ctx);
   if (!res.ok) return toolText("Facts are temporarily unavailable.", true);
   let facts: unknown;
   try { facts = await res.json(); } catch { return toolText(`Could not read the published facts for dataset '${id}'. Please try again later.`, true); }
-  return toolText(JSON.stringify({ facts, disclaimer: DISCLAIMER, page: `${base(env)}/d/${id}/` }, null, 2));
+  return toolText(JSON.stringify({ facts, source: "weekly index", disclaimer: DISCLAIMER, page: `${base(env)}/d/${id}/` }, null, 2));
+}
+
+async function handleCheck(req: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+  const id = new URL(req.url).searchParams.get("id") ?? "";
+  const headers = { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "no-store" };
+  const reply = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers });
+  if (!validId(id)) return reply({ error: "invalid_id", message: "Expected a dataset ID such as 'owner/name'." }, 400);
+  if (!(await allowed(env, req))) return reply({ error: "rate_limited", message: "Too many live checks from this address. Try again in a minute." }, 429);
+  let got;
+  try { got = await liveFacts(id, ctx); } catch (e) {
+    return reply({ error: "hub_unavailable", message: e instanceof HubUnavailable ? "The Hugging Face Hub is not answering right now. Try again later." : "The live check failed. Try again later." }, 502);
+  }
+  if (got === null) return reply({ error: "not_found", message: "This dataset was not found on the Hugging Face Hub, or it is private." }, 404);
+  return reply({ ...got, source: "live check", note: LIVE_NOTE, disclaimer: DISCLAIMER }, 200);
 }
 
 async function findDatasets(env: Env, args: any) {
@@ -158,7 +218,7 @@ async function handleRpc(req: Request, env: Env, ctx?: ExecutionContext): Promis
         result: {
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: {} },
-          serverInfo: { name: "dataset-licence-mcp", version: "0.1.0" },
+          serverInfo: { name: "dataset-licence-mcp", version: "0.2.0" },
           instructions: DISCLAIMER,
         },
       });
@@ -177,7 +237,7 @@ async function handleRpc(req: Request, env: Env, ctx?: ExecutionContext): Promis
       const name = msg.params?.name;
       const args = msg.params?.arguments;
       let result;
-      if (name === "dataset_licence") result = await datasetLicence(env, args);
+      if (name === "dataset_licence") result = await datasetLicence(env, args, req, ctx);
       else if (name === "find_datasets") result = await findDatasets(env, args);
       else result = toolText(`Unknown tool '${String(name)}'.`, true);
       return json({ jsonrpc: "2.0", id: msg.id, result });
@@ -224,6 +284,7 @@ export default {
       return res;
     }
     if (pathname === "/stats" && req.method === "GET") return handleStats(req, env);
+    if (pathname === "/v1/check" && req.method === "GET") return handleCheck(req, env, ctx);
     if (pathname === "/" && req.method === "GET") {
       return new Response(
         `Dataset Licence MCP server. Site: ${base(env)}/\nMCP endpoint (streamable HTTP, POST): /mcp\n${DISCLAIMER}\n`,

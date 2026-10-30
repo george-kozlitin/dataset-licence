@@ -207,3 +207,16 @@ pre.cite { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--pan
   .rows.hub li { grid-template-columns: 1fr; }
   .rows .dl { text-align: left; }
 }
+
+/* Live check */
+.live-row { border-bottom: 0 !important; padding-top: 12px !important; }
+.live-btn { font: 500 14px var(--sans); color: var(--text); background: var(--panel); border: 1px solid var(--glow); border-radius: 8px; padding: 10px 14px; cursor: pointer; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.live-btn:hover { box-shadow: 0 0 18px -6px var(--glow); }
+#live { max-width: 640px; }
+.live-card { margin-top: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.live-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.live-head h2 { font-size: 20px; font-weight: 500; overflow-wrap: anywhere; }
+.live-card .reason { font-size: 17px; margin: 16px 0; }
+.live-card .facts li { grid-template-columns: 150px minmax(0, 1fr); }
+.live-card .facts li > span:last-child { overflow-wrap: anywhere; }
+#live-404 p { margin-top: 24px; }

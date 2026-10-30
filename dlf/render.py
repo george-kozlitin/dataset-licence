@@ -233,7 +233,7 @@ def render_site(
     )
 
     # Static files.
-    for name in ("style.css", "search.js"):
+    for name in ("style.css", "search.js", "live.js"):
         shutil.copyfile(HERE / "static" / name, out / name)
     shutil.copytree(HERE / "static" / "fonts", out / "fonts", dirs_exist_ok=True)
     _write(out, "robots.txt", f"User-agent: *\nAllow: /\n\nSitemap: {base}/sitemap.xml\n")
