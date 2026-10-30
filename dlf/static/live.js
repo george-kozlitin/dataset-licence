@@ -61,11 +61,11 @@
         ? f.licence_files.join(", ") + (f.file_licence ? ", detected as " + f.file_licence : ", licence not identified")
         : "No licence file at the top level of the repository",
       f.file_evidence);
-    if (!f.sources.length) fact(list, "Declared sources", "None listed in the card metadata", null);
+    if (!f.sources.length) fact(list, "Declared sources", "None listed in the dataset card metadata", null);
     f.sources.forEach(function (s) {
-      fact(list, "Source " + s.id, s.found ? (s.licence || "no licence stated") : "not found", s.evidence);
+      fact(list, "Source " + s.id, s.found ? (s.licence || "no licence in metadata") : "not found on the Hub", s.evidence);
     });
-    if (f.sources_omitted) fact(list, "Sources not checked", f.sources_omitted + " more listed in the card", null);
+    if (f.sources_omitted) fact(list, "Sources not checked", f.sources_omitted + " more listed in the dataset card metadata", null);
     card.appendChild(list);
     var note = el("p", "hint", "Checked live on the Hugging Face Hub, " + when(body.checked_at) +
       ". This dataset is not in the weekly index, so it has no page on this site. ");

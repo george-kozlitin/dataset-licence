@@ -21,7 +21,7 @@ const COUNT_TTL_S = 70 * 86400;
 const MAX_LIMIT = 50;
 const LIVE_TTL_S = 6 * 3600;
 const LIVE_NOTE =
-  `Checked live on the Hugging Face Hub because the dataset is not in the weekly index, or a fresh check was asked for. At most ${MAX_SOURCES} declared sources are looked up; sources_omitted counts the rest.`;
+  `Checked live on the Hugging Face Hub because the dataset is outside the weekly index or a fresh check was requested. Up to ${MAX_SOURCES} declared sources are checked; sources_omitted gives the number of additional declared sources not checked.`;
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const CORS: Record<string, string> = {
@@ -43,7 +43,7 @@ const TOOLS = [
   {
     name: "dataset_licence",
     description:
-      "Retrieve licence facts for one Hugging Face dataset: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. Datasets in the weekly index of popular datasets are answered from it; any other public dataset is checked live on the Hub. " + SIGNAL_HELP + " " + DISCLAIMER,
+      "Retrieve licence facts for one Hugging Face dataset: declared licence, where it was declared, recorded source datasets, detected licence files and a signal. Each licence value comes with an evidence URL linking to the Hub file, API record, file list or Hub page that was checked, with a commit-specific link where available. For datasets in the weekly index of popular datasets, facts come from the index by default. Other public datasets are checked live on the Hugging Face Hub. " + SIGNAL_HELP + " " + DISCLAIMER,
     inputSchema: {
       type: "object",
       properties: {
