@@ -62,7 +62,7 @@ request to that bucket. Pacing is 5 requests per second overall.
 - `data/index.json` (used by `find_datasets`) holds the 5,000 most downloaded;
   `data/ids.json` (site search) holds every ID.
 - The build fails (exit 2) if the site has more than 19,500 files.
-- Pages where nothing about the licence was found (no declared licence, no
+- Beyond the 5,000 most downloaded, pages where nothing about the licence was found (no declared licence, no
   licence name, no licence file, no sources) carry `noindex` and are left out
   of the sitemap.
 

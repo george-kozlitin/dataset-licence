@@ -441,13 +441,19 @@ def test_index_json_is_capped(tmp_path, monkeypatch):
     assert [row[0] for row in json.loads(read(tmp_path, "data/index.json"))] == ["o/d0", "o/d1"]
 
 
-def test_thin_pages_are_noindex_and_out_of_the_sitemap(tmp_path):
+def test_thin_pages_are_noindex_and_out_of_the_sitemap(tmp_path, monkeypatch):
+    import dlf.render as r
+
+    monkeypatch.setattr(r, "INDEXABLE_TOP", 1)
     empty = make(id="o/empty", owner="o", name="empty", stated_licence=None, stated_from="none",
                  licence_files=[], file_licence=None, sources=[], signal="unclear")  # fmt: skip
     assert thin(empty) and not thin(make())
     assert not thin(make(stated_licence=None, stated_from="none", licence_files=["LICENSE"]))
-    stats = render_site([make(), empty], tmp_path, BASE, "2026-10-30")
+    top = make(id="o/top", owner="o", name="top", downloads=10_000, stated_licence=None,
+               stated_from="none", licence_files=[], file_licence=None, sources=[], signal="unclear")  # fmt: skip
+    stats = render_site([make(), empty, top], tmp_path, BASE, "2026-10-30")
     assert stats.noindex == 1
+    assert "noindex" not in read(tmp_path, "d/o/top/index.html")  # within the indexable top
     assert '<meta name="robots" content="noindex">' in read(tmp_path, "d/o/empty/index.html")
     assert "noindex" not in read(tmp_path, "d/acme/permissive-set/index.html")
     sitemap = read(tmp_path, "sitemap-1.xml")

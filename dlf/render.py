@@ -22,6 +22,7 @@ HUB_PAGE_SIZE = 200
 SITEMAP_LIMIT = 5000
 STATIC_PAGES = 10000  # dataset pages written as files; the rest go into page shards
 INDEX_LIMIT = 5000  # rows in data/index.json (find_datasets in the MCP Worker)
+INDEXABLE_TOP = 5000  # the most downloaded stay indexable even when nothing was found (indexed since launch)
 FILE_BUDGET = 19500  # Cloudflare Pages allows 20,000 files per deployment on the free plan
 SIGNALS = ("permissive", "restrictive", "conflict", "unclear")
 SIGNAL_LABELS = {
@@ -169,7 +170,7 @@ def render_site(
                 }
             )
         keep: dict | None = None if i < static_pages else {}
-        hidden = thin(f)
+        hidden = i >= INDEXABLE_TOP and thin(f)
         noindex += hidden
         page(
             p,
