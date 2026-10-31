@@ -2,11 +2,13 @@
 // the generator writes (p/<xxx>.txt, data/f/<xxx>.txt). Shard keys and the line format match dlf/shards.py:
 // a shard is lines "<lower-case id>\t<JSON>\n"; only the requested line is parsed, so a large shard stays
 // within the CPU limit.
-// _routes.json limits it to /d/* and /data/d/*; everything else is served as static files.
+// _routes.json limits it to /d/*, /data/d/* and the hubs; everything else is served as static files.
 
 const ID = "([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?)";
 const PAGE_RE = new RegExp(`^/d/${ID}(/?)$`);
 const FACTS_RE = new RegExp(`^/data/d/${ID}\\.json$`);
+// A hub page past the last one (hubs shrink as the build changes) goes to the first page of that hub.
+const HUB_PAGE_RE = /^\/(licence|signal|task)\/([A-Za-z0-9_.-]+)\/page\/[0-9]+\/?$/;
 
 export function fnv1a(text) {
   let h = 0x811c9dc5;
@@ -79,6 +81,9 @@ export default {
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=0, must-revalidate" },
       });
     }
+
+    const hub = HUB_PAGE_RE.exec(path);
+    if (hub) return new Response(null, { status: 308, headers: { location: `/${hub[1]}/${hub[2]}/` } });
 
     const facts = FACTS_RE.exec(path);
     if (facts && validId(facts[1])) {

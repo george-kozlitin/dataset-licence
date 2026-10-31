@@ -108,6 +108,14 @@ describe("Pages worker", () => {
       expect(res.headers.get("location"), path).toBe(to);
     }
   });
+  it("sends a hub page past the last one to the first page of that hub", async () => {
+    for (const [path, to] of [["/signal/unclear/page/14/", "/signal/unclear/"], ["/licence/mit/page/99", "/licence/mit/"], ["/task/text-classification/page/11/", "/task/text-classification/"]]) {
+      const res = await get(site(), path);
+      expect(res.status, path).toBe(308);
+      expect(res.headers.get("location"), path).toBe(to);
+    }
+    expect((await get(site(), "/signal/unclear/page/x/")).status).toBe(404);
+  });
   it("answers 404 with the not-found page for unknown or invalid IDs", async () => {
     for (const path of ["/d/o/none/", "/d/../x/", "/d/a/b/c/", "/d/%E0%A4%A/", "/data/d/o/none.json"]) {
       const res = await get(site(), path);

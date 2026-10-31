@@ -66,10 +66,13 @@ request to that bucket. Pacing is 5 requests per second overall.
   keys: FNV-1a of the lower-case ID (`dlf/shards.py`). At 1.1 million a page
   shard is about 1.7 MB; the worker finds one line with `indexOf` and parses
   only that line.
-- `_worker.js` (advanced mode) runs only for `/d/*` and `/data/d/*`
-  (`_routes.json`). It serves the static file when there is one, and otherwise
-  the page or facts from the shard: 308 to the canonical address for a missing
-  slash or other letter case, 404 with the not-found page for unknown IDs.
+- `_worker.js` (advanced mode) runs only for `/d/*`, `/data/d/*` and the hubs
+  (`/licence/*`, `/signal/*`, `/task/*`; `_routes.json`). It serves the static
+  file when there is one, and otherwise the page or facts from the shard: 308
+  to the canonical address for a missing slash or other letter case (a static
+  page is found through the facts shard), 404 with the not-found page for
+  unknown IDs. A hub page past the last one (hubs list at most 10 pages, so old
+  page numbers disappear) gets a 308 to the first page of that hub.
   `/data/d/<id>.json` answers in any letter case with the canonical `id`.
 - `data/index.json` (used by `find_datasets`) holds the 5,000 most downloaded;
   `data/ids.json` (site search) holds the 50,000 most downloaded. A full
